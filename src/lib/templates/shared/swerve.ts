@@ -5,9 +5,18 @@ export interface Rect {
   bottom: number;
 }
 
+// A point on the line with the direction of travel there, in degrees.
+export interface WirePoint {
+  x: number;
+  y: number;
+  angle: number;
+}
+
 export interface WireRun {
   d: string;
-  node: { x: number; y: number } | null;
+  node: WirePoint | null;
+  // Evenly spaced points along a long stretch, for couplings and similar details.
+  joints: WirePoint[];
 }
 
 // A tube stub where the line dives into a conduit or pipe sleeve. `angle` points from the wire toward the
@@ -31,6 +40,7 @@ type Pt = [number, number];
 
 const MIN_RUN = 60;
 const NODE_RUN = 220;
+const JOINT_EVERY = 240;
 
 function samplePath(width: number, height: number): Pt[] {
   const nums = (BASE.match(/-?\d+\.?\d*/g) ?? []).map(Number);
@@ -99,10 +109,28 @@ export function swerveRuns(width: number, height: number, blocks: Rect[], pad = 
     while (j + 1 < pts.length && !inside[j + 1]) j++;
     const run = pts.slice(i, j + 1);
     if (length(run) >= MIN_RUN) {
-      const mid = run[Math.floor(run.length / 2)];
+      const total = length(run);
+      const at = (k: number): WirePoint => {
+        const a = run[Math.max(0, k - 1)];
+        const b = run[Math.min(run.length - 1, k + 1)];
+        return { x: +run[k][0].toFixed(1), y: +run[k][1].toFixed(1), angle: toward(a, b) };
+      };
+      const midIndex = Math.floor(run.length / 2);
+      const joints: WirePoint[] = [];
+      let acc = 0;
+      let next = JOINT_EVERY;
+      for (let k = 1; k < run.length; k++) {
+        acc += Math.hypot(run[k][0] - run[k - 1][0], run[k][1] - run[k - 1][1]);
+        if (acc >= next) {
+          next += JOINT_EVERY;
+          // Keep couplings clear of the run ends (where the sleeve sits) and of the middle node.
+          if (acc > 50 && total - acc > 50 && Math.abs(acc - total / 2) > 45) joints.push(at(k));
+        }
+      }
       runs.push({
         d: 'M' + run.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' L'),
-        node: length(run) >= NODE_RUN ? { x: +mid[0].toFixed(1), y: +mid[1].toFixed(1) } : null
+        node: total >= NODE_RUN ? at(midIndex) : null,
+        joints
       });
       if (i > 0 && inside[i - 1]) caps.push({ x: +run[0][0].toFixed(1), y: +run[0][1].toFixed(1), angle: toward(run[1] ?? run[0], run[0]) });
       if (j < pts.length - 1 && inside[j + 1]) {

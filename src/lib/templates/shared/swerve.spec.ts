@@ -34,3 +34,14 @@ describe('swerveRuns', () => {
     expect(swerveRuns(500, 0, [])).toBeNull();
   });
 });
+
+describe('swerveRuns details', () => {
+  it('puts couplings along long stretches, clear of the node, and gives the node a direction', () => {
+    const w = swerveRuns(1440, 6000, []);
+    const run = w!.runs[0];
+    expect(run.joints.length).toBeGreaterThan(10);
+    expect(run.node).not.toBeNull();
+    expect(typeof run.node!.angle).toBe('number');
+    expect(run.joints.every((j) => Math.hypot(j.x - run.node!.x, j.y - run.node!.y) > 20)).toBe(true);
+  });
+});

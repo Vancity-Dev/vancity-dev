@@ -496,18 +496,37 @@
       {#each pipe.runs as run, i (i)}
         <path d={run.d} class="pipe-edge" />
         <path d={run.d} class="pipe-body" />
-        <path d={run.d} class="pipe-sheen" />
+        <path d={run.d} class="pipe-stripe" />
         <path d={run.d} class="pipe-flow" pathLength="1000" />
+        {#each run.joints as j (j.x + ',' + j.y)}
+          <g transform="translate({j.x} {j.y}) rotate({j.angle})">
+            <rect x="-6" y="-13" width="12" height="26" rx="2.5" class="pipe-collar" />
+            <rect x="-1" y="-13" width="2" height="26" class="pipe-collar-line" />
+          </g>
+        {/each}
         {#if run.node}
-          <g transform="translate({run.node.x - 13} {run.node.y - 13})">
-            <circle cx="13" cy="13" r="13" class="pipe-node" />
-            <path d={icons.drain} class="pipe-drop" transform="translate(5 4.5) scale(0.62)" />
+          <!-- Fittings alternate between a gate valve and a pressure gauge, as on a real run. -->
+          <g transform="translate({run.node.x} {run.node.y})">
+            <g transform="rotate({run.node.angle})">
+              <rect x="-16" y="-13" width="9" height="26" rx="2.5" class="pipe-collar" />
+              <rect x="7" y="-13" width="9" height="26" rx="2.5" class="pipe-collar" />
+              <rect x="-8" y="-11" width="16" height="22" rx="3" class="pipe-body-fitting" />
+            </g>
+            {#if i % 2 === 0}
+              <line x1="0" y1="-10" x2="0" y2="-22" class="pipe-stem" />
+              <ellipse cx="0" cy="-25" rx="12" ry="4.5" class="pipe-wheel" />
+              <rect x="-2.5" y="-30" width="5" height="9" rx="2" class="pipe-wheel" />
+            {:else}
+              <line x1="0" y1="-10" x2="0" y2="-19" class="pipe-stem" />
+              <circle cx="0" cy="-30" r="12" class="pipe-gauge" />
+              <path d="M0 -30 L5 -35" class="pipe-needle" />
+            {/if}
           </g>
         {/if}
       {/each}
       {#each pipe.caps as cap, i (i)}
         <g transform="translate({cap.x} {cap.y}) rotate({cap.angle})">
-          <rect x="-24" y="-11" width="24" height="22" rx="4" class="pipe-sleeve" />
+          <rect x="-12" y="-13" width="12" height="26" rx="3" class="pipe-collar" />
           <rect x="-4" y="-16" width="7" height="32" rx="2" class="pipe-flange" />
         </g>
       {/each}
@@ -3208,59 +3227,73 @@
 
   .pipe-edge,
   .pipe-body,
-  .pipe-sheen,
+  .pipe-stripe,
   .pipe-flow {
     fill: none;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
 
+  /* Flat, two-tone PVC in light blue with darker couplings, like a plumbing diagram. */
   .pipe-edge {
-    stroke: #8fa3b8;
-    stroke-opacity: 0.55;
-    stroke-width: 17;
+    stroke: #4fa3cc;
+    stroke-width: 20;
   }
 
   .pipe-body {
-    stroke: #e8eef5;
-    stroke-opacity: 0.9;
-    stroke-width: 13;
+    stroke: #7cc6e4;
+    stroke-width: 16;
   }
 
-  .pipe-sheen {
-    stroke: #fff;
-    stroke-opacity: 0.9;
-    stroke-width: 3;
+  .pipe-stripe {
+    stroke: #b4e3f4;
+    stroke-width: 6;
   }
 
   .pipe-flow {
-    stroke: var(--op-water);
-    stroke-opacity: 0.75;
-    stroke-width: 5;
-    stroke-dasharray: 16 84;
+    stroke: #f2fbff;
+    stroke-opacity: 0.9;
+    stroke-width: 3;
+    stroke-dasharray: 10 90;
     animation: pipe-run 6s linear infinite;
   }
 
-  .pipe-node {
-    fill: #fff;
-    stroke: #8fa3b8;
-    stroke-opacity: 0.7;
-    stroke-width: 2;
+  .pipe-collar {
+    fill: #3b8fb8;
   }
 
-  .pipe-drop {
-    fill: var(--op-water);
-    fill-opacity: 0.9;
-  }
-
-  .pipe-sleeve {
-    fill: #cbd5e1;
-    stroke: #8fa3b8;
-    stroke-width: 1.5;
+  .pipe-collar-line {
+    fill: #62b0d4;
   }
 
   .pipe-flange {
-    fill: #94a3b8;
+    fill: #2f7ba3;
+  }
+
+  .pipe-body-fitting {
+    fill: #3b8fb8;
+  }
+
+  .pipe-stem {
+    stroke: #2f7ba3;
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+
+  .pipe-wheel {
+    fill: #e0483a;
+  }
+
+  .pipe-gauge {
+    fill: #fff;
+    stroke: #e0483a;
+    stroke-width: 3.5;
+  }
+
+  .pipe-needle {
+    stroke: #e0483a;
+    stroke-width: 2.5;
+    stroke-linecap: round;
   }
 
   @keyframes pipe-run {
