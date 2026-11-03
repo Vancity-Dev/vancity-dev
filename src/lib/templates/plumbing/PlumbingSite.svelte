@@ -4,7 +4,9 @@
   // The design's JS width breakpoints (narrow < 900, fullNav >= 1150) are CSS
   // media queries here so the page renders correctly on the server.
 
+  import { onMount } from 'svelte';
   import type { PlumbingContent } from './types';
+  import { pipeRuns, type Rect } from './pipe';
 
   let { content }: { content: PlumbingContent } = $props();
 
@@ -95,6 +97,23 @@
 
   const services = $derived(
     baseServices.map((s) => ({ ...s, href: content.serviceHrefs[s.title] ?? '#book' }))
+  );
+
+  // Service filter chips. The grid is the full list until a visitor narrows it.
+  const serviceCats: Record<string, string> = {
+    '24/7 Emergency': 'Repairs',
+    'Drain Cleaning': 'Repairs',
+    'Leak Detection': 'Repairs',
+    'Toilets & Fixtures': 'Repairs',
+    'Water Heaters': 'Water heaters',
+    'Sewer Line': 'Pipes',
+    Repiping: 'Pipes',
+    'Water Filtration': 'Water quality'
+  };
+  const serviceFilters = ['All', 'Repairs', 'Water heaters', 'Pipes', 'Water quality'];
+  let serviceFilter = $state('All');
+  const shownServices = $derived(
+    serviceFilter === 'All' ? services : services.filter((s) => serviceCats[s.title] === serviceFilter)
   );
 
   const serviceNames = [...baseServices.map((s) => s.title), 'Something else'];
@@ -222,6 +241,170 @@
 
   type Errors = { name?: boolean; phone?: boolean; zip?: boolean; service?: boolean };
 
+  // "Turn the valve" situations: each one re-words the hero and the do-this-now steps, and
+  // pre-fills the booking form. General guidance only; the plumber confirms on site.
+  const situations = $derived([
+    {
+      label: 'Burst pipe or flooding',
+      service: '24/7 Emergency',
+      urgency: 'Today',
+      h1: `Burst pipe or flooding in ${content.city}? Call a plumber now.`,
+      lead: 'Shut off the water if you can and call us. We answer 24/7 and come now.',
+      tipsTitle: 'Do this now',
+      tips: [
+        'Turn off the main water valve, usually near the meter or where the line enters the house.',
+        'Move valuables and electronics away from the water.',
+        'Call us. Take photos for insurance if it’s safe.'
+      ],
+      cta: `Call ${content.phoneDisplay} now`,
+      href: content.phoneHref
+    },
+    {
+      label: 'Clogged drain',
+      service: 'Drain Cleaning',
+      urgency: 'Today',
+      h1: `Clogged drain in ${content.city}? Get it flowing again.`,
+      lead: 'Slow or backed-up drains cleared and camera-checked, with the price set before we start.',
+      tipsTitle: 'Before you call',
+      tips: [
+        'Stop running water and skip the chemical cleaners.',
+        'Note which drains are slow or gurgling.',
+        'Book online or call. We camera-check if needed.'
+      ],
+      cta: 'Book a plumber',
+      href: '#book'
+    },
+    {
+      label: 'No hot water',
+      service: 'Water Heaters',
+      urgency: 'Today',
+      h1: `No hot water in ${content.city}? Let’s get the heat back.`,
+      lead: 'Repair or replace, tank or tankless, with a flat price you approve first.',
+      tipsTitle: 'What helps',
+      tips: [
+        'Check that the pilot light or breaker is on.',
+        'Note the tank’s age and any water around it.',
+        'Don’t force a stuck valve. Call us.'
+      ],
+      cta: 'Book a plumber',
+      href: '#book'
+    },
+    {
+      label: 'Hidden leak or high bill',
+      service: 'Leak Detection',
+      urgency: 'This week',
+      h1: `Hidden leak or a high water bill in ${content.city}? Find it without tearing out walls.`,
+      lead: 'We locate leaks with the right tools first, so you only open what you need to.',
+      tipsTitle: 'What to check',
+      tips: [
+        'Does your water meter move with everything off?',
+        'Look for damp spots, stains or musty smells.',
+        'Book a leak check. No demolition to find it.'
+      ],
+      cta: 'Book a plumber',
+      href: '#book'
+    },
+    {
+      label: 'Old pipes or a remodel',
+      service: 'Repiping',
+      urgency: 'Flexible',
+      h1: `Old pipes or a remodel in ${content.city}? Get a clear plan and price.`,
+      lead: 'Replace aging poly-B or galvanized pipe, or plan new fixtures, with a written estimate.',
+      tipsTitle: 'What helps',
+      tips: [
+        'Note discoloured water or low pressure.',
+        'Take a photo of any exposed pipe.',
+        'Get a free written estimate. No pressure.'
+      ],
+      cta: 'Book a plumber',
+      href: '#book'
+    }
+  ]);
+
+  // null = nothing picked yet, so the page shows the prospect's own headline and lead.
+  let sit = $state<number | null>(null);
+  const current = $derived(sit === null ? null : situations[sit]);
+  const heroTitle = $derived(current ? current.h1 : content.heroHeadline);
+  const heroLead = $derived(current ? current.lead : content.heroLead);
+  const cardTipsTitle = $derived(current ? current.tipsTitle : 'Not sure where to start?');
+  const cardTips = $derived(
+    current
+      ? current.tips
+      : [
+          'Pick what fits above and we’ll tailor the next steps.',
+          'Emergency? Call, don’t fill out a form.',
+          'Everything else: a flat price you approve first.'
+        ]
+  );
+  const cardCta = $derived(current ? current.cta : `Call ${content.phoneDisplay} — 24/7`);
+  const cardHref = $derived(current ? current.href : content.phoneHref);
+
+  // Time-aware badge. Empty on the server, filled on mount, so there is no hydration mismatch.
+  let now = $state<Date | null>(null);
+  const nowLabel = $derived(
+    now ? now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''
+  );
+  const liveLine = $derived.by(() => {
+    if (!now) return 'A real person picks up.';
+    const h = now.getHours();
+    const d = now.getDay();
+    if (h >= 21 || h < 6) return 'Pipe burst at night? Call anyway.';
+    if (d === 0 || d === 6) return 'Weekends too.';
+    return 'No hold music.';
+  });
+
+  // A PVC run that swerves across the page. It is measured against the content blocks, so it
+  // ends in a wall sleeve wherever it would cross text and re-emerges in the gaps between sections.
+  let root: HTMLElement | undefined = $state();
+  let pageSize = $state({ w: 0, h: 0 });
+  let blocks = $state<Rect[]>([]);
+  const pipe = $derived(pipeRuns(pageSize.w, pageSize.h, blocks));
+
+  function measure() {
+    if (!root) return;
+    const base = root.getBoundingClientRect();
+    const rects: Rect[] = [];
+    const bands = root.querySelectorAll(':scope > main > section, :scope > main > div, :scope > footer');
+    for (const band of bands) {
+      for (const child of band.children) {
+        if (child instanceof SVGElement) continue;
+        // Containers are walked one level down, so each column or card list is its own block.
+        const parts = child.matches('.container, .container-narrow, .hero-inner')
+          ? [...child.children]
+          : [child];
+        for (const el of parts) {
+          if (el instanceof SVGElement) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          rects.push({
+            left: r.left - base.left,
+            top: r.top - base.top,
+            right: r.right - base.left,
+            bottom: r.bottom - base.top
+          });
+        }
+      }
+    }
+    blocks = rects;
+    pageSize = { w: root.offsetWidth, h: root.offsetHeight };
+  }
+
+  onMount(() => {
+    const tick = () => (now = new Date());
+    tick();
+    const timer = setInterval(tick, 30000);
+    let ro: ResizeObserver | undefined;
+    if (root && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      ro.observe(root);
+      measure();
+    }
+    return () => {
+      clearInterval(timer);
+      ro?.disconnect();
+    };
+  });
+
   let scrollY = $state(0);
   let menuOpen = $state(false);
   let form = $state({ ...emptyForm });
@@ -255,6 +438,14 @@
     };
   }
 
+  // Picking a situation also pre-fills the booking form, so the choice carries through.
+  function pick(i: number) {
+    sit = i;
+    form.service = situations[i].service;
+    form.urgency = situations[i].urgency;
+    if (tried) errs = validate(form);
+  }
+
   function revalidate() {
     if (tried) errs = validate(form);
   }
@@ -286,7 +477,43 @@
 
 <svelte:window bind:scrollY />
 
-<div class="op-root">
+{#snippet ripple(fill: string)}
+  <svg class="ac" aria-hidden="true" viewBox="0 0 1440 48" preserveAspectRatio="none">
+    <path
+      d="M0,24 C120,-6 240,54 360,24 S600,-6 720,24 S960,54 1080,24 S1320,-6 1440,24 L1440,48 L0,48Z"
+      {fill}
+    />
+    <path
+      class="ac-trace"
+      d="M0,24 C120,-6 240,54 360,24 S600,-6 720,24 S960,54 1080,24 S1320,-6 1440,24"
+    />
+  </svg>
+{/snippet}
+
+<div class="op-root" bind:this={root}>
+  {#if pipe}
+    <svg class="pipe" aria-hidden="true" width={pageSize.w} height={pageSize.h} viewBox="0 0 {pageSize.w} {pageSize.h}">
+      {#each pipe.runs as run, i (i)}
+        <path d={run.d} class="pipe-edge" />
+        <path d={run.d} class="pipe-body" />
+        <path d={run.d} class="pipe-sheen" />
+        <path d={run.d} class="pipe-flow" pathLength="1000" />
+        {#if run.node}
+          <g transform="translate({run.node.x - 13} {run.node.y - 13})">
+            <circle cx="13" cy="13" r="13" class="pipe-node" />
+            <path d={icons.drain} class="pipe-drop" transform="translate(5 4.5) scale(0.62)" />
+          </g>
+        {/if}
+      {/each}
+      {#each pipe.caps as cap, i (i)}
+        <g transform="translate({cap.x} {cap.y}) rotate({cap.angle})">
+          <rect x="-24" y="-11" width="24" height="22" rx="4" class="pipe-sleeve" />
+          <rect x="-4" y="-16" width="7" height="32" rx="2" class="pipe-flange" />
+        </g>
+      {/each}
+    </svg>
+  {/if}
+
   <a href="#main" class="skip">Skip to content</a>
 
   <div class="utility">
@@ -360,13 +587,20 @@
     <span id="top"></span>
 
     <section class="hero">
+      <svg class="rings" aria-hidden="true" viewBox="0 0 400 400" fill="none">
+        <circle cx="200" cy="200" r="190" stroke="#cfe0f0" stroke-width="2.5" />
+        <circle cx="200" cy="200" r="150" stroke="#cfe0f0" stroke-width="2.5" />
+        <circle cx="200" cy="200" r="110" stroke="#9cc6ea" stroke-width="2.5" />
+        <circle cx="200" cy="200" r="70" stroke="#9cc6ea" stroke-width="2.5" />
+        <path d="M332 62s-12 15-12 24a12 12 0 0 0 24 0c0-9-12-24-12-24z" fill="#0b4f8a" fill-opacity="0.35" />
+      </svg>
       <div class="hero-inner">
         <div>
           <span class="pill"
             ><span class="pill-dot" aria-hidden="true"></span>{content.availabilityPill}</span
           >
-          <h1>{content.heroHeadline}</h1>
-          <p class="hero-lead">{content.heroLead}</p>
+          <h1>{heroTitle}</h1>
+          <p class="hero-lead">{heroLead}</p>
           <ul class="checklist">
             <li>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icons.check} /></svg>
@@ -406,9 +640,31 @@
         </div>
 
         <div class="hero-media">
-          <div class="photo-slot hero-photo" aria-hidden={content.photoCaptions ? undefined : 'true'}
-            class:bare={!content.photoCaptions}>
-            {#if content.photoCaptions}<span>{content.photoCaptions.hero}</span>{/if}
+          <div class="scard">
+            <p class="scard-eyebrow">What’s going on? Turn the valve.</p>
+            <div class="valves" role="group" aria-label="Your situation">
+              {#each situations as s, i (s.label)}
+                <button type="button" class="vlv" class:on={sit === i} aria-pressed={sit === i} onclick={() => pick(i)}>
+                  <span class="vlv-wheel" aria-hidden="true"><span class="vlv-bar"></span></span>
+                  <span>{s.label}</span>
+                </button>
+              {/each}
+            </div>
+            <div class="scard-tips">
+              <p class="scard-tips-title">{cardTipsTitle}</p>
+              {#each cardTips as t, i (t)}
+                <div class="scard-tip"><span class="scard-num">{i + 1}</span><span>{t}</span></div>
+              {/each}
+            </div>
+            <a href={cardHref} class="btn-accent btn-lg scard-cta">{cardCta}</a>
+            <p class="scard-note">General guidance. If water is near electrical, stay clear and call us.</p>
+          </div>
+          <div class="float-card float-card-live">
+            <span class="float-icon float-icon-green" aria-hidden="true"><span class="live-dot"></span></span>
+            <span class="float-text">
+              <strong>Answering now{nowLabel ? ` · ${nowLabel}` : ''}</strong>
+              <span>{liveLine}</span>
+            </span>
           </div>
           <div class="float-card float-card-left">
             <span class="float-icon float-icon-green" aria-hidden="true">
@@ -437,6 +693,7 @@
     </section>
 
     <section class="trust" aria-label="Why homeowners trust us">
+      {@render ripple('#0a1f33')}
       <div class="trust-inner">
         {#each trust as t (t.title)}
           <div class="trust-item">
@@ -483,8 +740,17 @@
           >
         </div>
 
+        <div class="valves service-filters" role="group" aria-label="Filter services">
+          {#each serviceFilters as f (f)}
+            <button type="button" class="vlv" class:on={serviceFilter === f} aria-pressed={serviceFilter === f} onclick={() => (serviceFilter = f)}>
+              <span class="vlv-wheel" aria-hidden="true"><span class="vlv-bar"></span></span>
+              <span>{f}</span>
+            </button>
+          {/each}
+        </div>
+
         <div class="service-grid">
-          {#each services as s (s.title)}
+          {#each shownServices as s (s.title)}
             <a href={s.href} class="service-card" class:featured={s.featured}>
               <span class="service-icon" aria-hidden="true">
                 <svg width="26" height="26" viewBox="0 0 24 24"><path d={s.icon} /></svg>
@@ -500,7 +766,7 @@
         </div>
 
         <div class="service-list">
-          {#each services as s (s.title)}
+          {#each shownServices as s (s.title)}
             <a href={s.href} class="service-row" class:featured={s.featured}>
               <span class="service-icon" aria-hidden="true">
                 <svg width="22" height="22" viewBox="0 0 24 24"><path d={s.icon} /></svg>
@@ -514,6 +780,7 @@
     </section>
 
     <section class="section section-alt">
+      {@render ripple('#f4f7fb')}
       <div class="container">
         <p class="eyebrow centered">How it works</p>
         <h2 class="centered steps-head">Three steps. No surprises.</h2>
@@ -581,6 +848,7 @@
     </section>
 
     <section id="pricing" class="section section-dark">
+      {@render ripple('#0a1f33')}
       <div class="container">
         <p class="eyebrow eyebrow-gold">Pricing, financing &amp; guarantee</p>
         <h2 class="pricing-head">The price we quote is the price you pay</h2>
@@ -675,6 +943,7 @@
     </section>
 
     <section id="area" class="section section-alt">
+      {@render ripple('#f4f7fb')}
       <div class="container area-inner">
         <div>
           <p class="eyebrow">Service area</p>
@@ -723,6 +992,7 @@
     </section>
 
     <section id="book" class="section section-dark">
+      {@render ripple('#0a1f33')}
       <div class="container book-inner">
         <div>
           <p class="eyebrow eyebrow-gold">Book service</p>
@@ -962,6 +1232,7 @@
 <style>
   /* ---- scoped reset: app.css sets cursor:none, serif stack and link colours ---- */
   .op-root {
+    --op-water: #38a1e8;
     --op-primary: #0b4f8a;
     --op-dark: #0a1f33;
     --op-accent: #cf4a0e;
@@ -976,6 +1247,8 @@
     --op-gold: #f5a524;
     --op-danger: #b91c1c;
 
+    position: relative;
+    overflow-x: clip;
     cursor: auto;
     background: #fff;
     color: var(--op-ink);
@@ -1054,6 +1327,7 @@
   }
 
   .section {
+    position: relative;
     padding: clamp(56px, 8vw, 96px) 0;
   }
 
@@ -1357,11 +1631,23 @@
 
   /* ---- hero ---- */
   .hero {
+    position: relative;
     background: var(--op-bg-alt);
     padding: clamp(40px, 6vw, 80px) 0;
   }
 
+  .rings {
+    position: absolute;
+    right: -140px;
+    top: -60px;
+    width: 720px;
+    height: 720px;
+    pointer-events: none;
+  }
+
   .hero-inner {
+    position: relative;
+    z-index: 2;
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 clamp(16px, 4vw, 32px);
@@ -1462,7 +1748,7 @@
 
   .hero-media {
     position: relative;
-    padding-bottom: 28px;
+    padding: 44px 0 52px;
   }
 
   .photo-slot {
@@ -1489,12 +1775,8 @@
     max-width: 24em;
   }
 
-  .hero-photo {
-    height: clamp(320px, 42vw, 540px);
-    box-shadow: 0 20px 40px rgba(10, 31, 51, 0.14);
-  }
-
   .float-card {
+    animation: pl-float 6s ease-in-out infinite;
     position: absolute;
     background: #fff;
     border-radius: 14px;
@@ -1512,7 +1794,23 @@
 
   .float-card-right {
     right: -12px;
-    top: 24px;
+    bottom: 0;
+    animation-delay: 1s;
+  }
+
+  .float-card-live {
+    left: -12px;
+    top: 0;
+    z-index: 2;
+    animation-duration: 5s;
+  }
+
+  .live-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--op-green);
+    animation: pl-pulse 1.8s infinite;
   }
 
   .float-icon {
@@ -1548,6 +1846,7 @@
 
   /* ---- trust bar ---- */
   .trust {
+    position: relative;
     background: var(--op-dark);
     color: #fff;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -2731,9 +3030,299 @@
     }
   }
 
+  /* ---- flair: valve switches, situation card, ripple edges, water-flow header line ---- */
+  .scard {
+    background: #fff;
+    border-radius: 16px;
+    padding: 26px;
+    box-shadow: 0 24px 50px rgba(10, 31, 51, 0.18);
+    border: 1px solid var(--op-line);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .scard-eyebrow {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--op-accent);
+  }
+
+  .valves {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .service-filters {
+    margin-bottom: 24px;
+  }
+
+  .vlv {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 6px 14px 6px 8px;
+    border-radius: 999px;
+    border: 1.5px solid var(--op-field);
+    background: #fff;
+    color: var(--op-ink);
+    font: 600 14px Inter, system-ui, sans-serif;
+    box-sizing: border-box;
+    transition: background 0.15s;
+  }
+
+  .vlv.on {
+    background: var(--op-primary);
+    border-color: var(--op-primary);
+    color: #fff;
+  }
+
+  .vlv-wheel {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #94a3b8;
+    display: grid;
+    place-items: center;
+    transition: background 0.15s;
+  }
+
+  .vlv.on .vlv-wheel {
+    background: var(--op-water);
+  }
+
+  /* The handle turns a quarter turn when the valve opens. */
+  .vlv-bar {
+    width: 16px;
+    height: 4px;
+    border-radius: 2px;
+    background: #fff;
+    transition: transform 0.25s;
+  }
+
+  .vlv.on .vlv-bar {
+    transform: rotate(90deg);
+  }
+
+  .scard-tips {
+    border-top: 1px solid var(--op-line);
+    padding-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .scard-tips-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    font-family: Archivo, Inter, sans-serif;
+    color: var(--op-primary);
+  }
+
+  .scard-tip {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .scard-num {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--op-bg-alt);
+    color: var(--op-primary);
+    font-weight: 700;
+    font-size: 14px;
+    display: grid;
+    place-items: center;
+  }
+
+  .scard-cta {
+    align-self: stretch;
+    text-align: center;
+  }
+
+  .scard-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--op-muted);
+  }
+
+  .ac {
+    position: absolute;
+    left: 0;
+    top: -47px;
+    width: 100%;
+    height: 48px;
+    display: block;
+    pointer-events: none;
+  }
+
+  .ac-trace {
+    fill: none;
+    stroke: var(--op-water);
+    stroke-width: 2;
+    stroke-opacity: 0.8;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--op-water), transparent) no-repeat;
+    background-size: 30% 100%;
+    animation: pl-flow 4s linear infinite;
+  }
+
+  /* PVC run: a pipe that swerves across the page with water running through it, a drop junction
+     on long stretches, and a wall sleeve where it dives behind content. It sits above section
+     backgrounds but below content: direct children of each band are lifted above it, and the
+     script ends the pipe before any block, so nothing crosses text. Decorative only. */
+  .pipe {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .op-root :is(.section, .trust, .hero, .alert-strip, .cta-band, .footer) > :not(svg) {
+    position: relative;
+    z-index: 2;
+  }
+
+  .pipe-edge,
+  .pipe-body,
+  .pipe-sheen,
+  .pipe-flow {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .pipe-edge {
+    stroke: #8fa3b8;
+    stroke-opacity: 0.55;
+    stroke-width: 17;
+  }
+
+  .pipe-body {
+    stroke: #e8eef5;
+    stroke-opacity: 0.9;
+    stroke-width: 13;
+  }
+
+  .pipe-sheen {
+    stroke: #fff;
+    stroke-opacity: 0.9;
+    stroke-width: 3;
+  }
+
+  .pipe-flow {
+    stroke: var(--op-water);
+    stroke-opacity: 0.75;
+    stroke-width: 5;
+    stroke-dasharray: 16 84;
+    animation: pipe-run 6s linear infinite;
+  }
+
+  .pipe-node {
+    fill: #fff;
+    stroke: #8fa3b8;
+    stroke-opacity: 0.7;
+    stroke-width: 2;
+  }
+
+  .pipe-drop {
+    fill: var(--op-water);
+    fill-opacity: 0.9;
+  }
+
+  .pipe-sleeve {
+    fill: #cbd5e1;
+    stroke: #8fa3b8;
+    stroke-width: 1.5;
+  }
+
+  .pipe-flange {
+    fill: #94a3b8;
+  }
+
+  @keyframes pipe-run {
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
+
+  @keyframes pl-flow {
+    from {
+      background-position: -40% 0;
+    }
+    to {
+      background-position: 140% 0;
+    }
+  }
+
+  @keyframes pl-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  @keyframes pl-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.5);
+    }
+    100% {
+      box-shadow: 0 0 0 10px rgba(21, 128, 61, 0);
+    }
+  }
+
+  @media (max-width: 899px) {
+    .pipe {
+      display: none;
+    }
+    .rings {
+      width: 420px;
+      height: 420px;
+      right: -160px;
+    }
+    .float-card-live {
+      left: 0;
+    }
+    .float-card-right {
+      right: 0;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .op-root :global(*) {
       transition: none !important;
+    }
+    .pipe-flow,
+    .header::after,
+    .float-card,
+    .live-dot {
+      animation: none;
     }
   }
 </style>

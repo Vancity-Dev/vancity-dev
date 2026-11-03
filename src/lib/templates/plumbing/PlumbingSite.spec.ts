@@ -174,3 +174,18 @@ describe('PlumbingSite rendered from derivePlumbingContent', () => {
     expect(html).toContain('ZIP code');
   });
 });
+
+describe('PlumbingSite flair', () => {
+  const html = render(PlumbingSite, { props: { content: turk } }).body.replace(/\s+/g, ' ');
+
+  it('offers every situation as a valve and keeps the prospect headline by default', () => {
+    for (const label of ['Burst pipe or flooding', 'Clogged drain', 'No hot water', 'Hidden leak or high bill', 'Old pipes or a remodel']) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain(turk.heroHeadline);
+  });
+
+  it('renders every service until a filter is picked', () => {
+    expect(html.match(/class="service-card/g)?.length).toBe(8);
+  });
+});
