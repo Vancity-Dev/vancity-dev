@@ -5,7 +5,9 @@
   // Every verifiable fact (licence, rating, named people, address) is optional content and
   // absent for a derived prospect — see derive.ts.
 
+  import { onMount } from 'svelte';
   import type { AccountingContent } from './types';
+  import { traceRuns, type Rect } from './trace';
 
   let { content }: { content: AccountingContent } = $props();
 
@@ -314,6 +316,21 @@
     }
   ]);
 
+  // Service filter tabs, like sheet tabs along the bottom of a workbook.
+  const serviceGroups = $derived<Record<string, string>>({
+    Bookkeeping: 'Books',
+    Payroll: 'Books',
+    'Tax Preparation': 'Tax',
+    'Tax Planning': 'Tax',
+    [`${t.authorityShort} Representation`]: 'Tax',
+    'Advisory & Fractional CFO': 'Advisory'
+  });
+  const serviceTabs = ['All', 'Books', 'Tax', 'Advisory'];
+  let serviceTab = $state('All');
+  const shownServices = $derived(
+    serviceTab === 'All' ? services : services.filter((s) => serviceGroups[s.title] === serviceTab)
+  );
+
   const clientTypes = ['Business owner', 'Individual or family', 'Existing client'];
   const serviceNeeds = $derived([
     'Bookkeeping',
@@ -340,6 +357,163 @@
     clientType?: boolean;
     message?: boolean;
   };
+
+  // "Pick a cell" situations: each one re-words the hero and the first steps, and pre-fills the
+  // consultation form. General guidance only; nothing here is tax advice.
+  const situations = $derived([
+    {
+      label: 'Books are behind',
+      clientType: 'Business owner',
+      needs: ['Bookkeeping'],
+      h1: `Behind on the books in ${content.city}? Let’s catch them up.`,
+      lead: 'Catch-up work is quoted after a short records review, then you move onto a fixed monthly fee.',
+      title: 'Gather these first',
+      tips: [
+        'Bank and card statements for the months missing.',
+        'A list of the accounts and payroll you use.',
+        'Book the free call. We scope it with you.'
+      ]
+    },
+    {
+      label: 'Tax deadline coming',
+      clientType: 'Individual or family',
+      needs: ['Tax preparation'],
+      h1: `Tax deadline coming up in ${content.city}? Get ahead of it.`,
+      lead: 'Know what is due, what you need and what it will cost, before the last week.',
+      title: 'Before you book',
+      tips: [
+        `Collect your ${t.slips} and last year’s return.`,
+        'Note any big changes: a move, a new job, a sale.',
+        'Book the free call and we map the dates.'
+      ]
+    },
+    {
+      label: `${t.authorityShort} letter`,
+      clientType: '',
+      needs: [`${t.authorityShort} letter or audit`],
+      h1: `Got a ${t.authorityShort} letter? Send it to us before you reply.`,
+      lead: 'We tell you what it is, whether it is correct and what it will take to resolve.',
+      title: 'If a notice arrives',
+      tips: [
+        'Find the response date on the letter.',
+        `Don’t email ${t.sensitiveIds} or the full notice. Use the secure portal.`,
+        'Book the free call and we take it from there.'
+      ]
+    },
+    {
+      label: 'Starting a business',
+      clientType: 'Business owner',
+      needs: ['Advisory / CFO', 'Bookkeeping'],
+      h1: `Starting a business in ${content.city}? Set the numbers up right.`,
+      lead: 'Structure, books and payroll set up once, so filing season is not a surprise.',
+      title: 'Day-one checklist',
+      tips: [
+        'Keep business and personal money in separate accounts.',
+        'Decide how you will be structured, or ask us.',
+        'Book the free call to set up books and payroll.'
+      ]
+    },
+    {
+      label: 'Plan to pay less tax',
+      clientType: '',
+      needs: ['Tax planning'],
+      h1: `Want a tax plan before filing season, not after?`,
+      lead: 'Planning through the year can surface options. We review structure, pay and retirement timing.',
+      title: 'What helps',
+      tips: [
+        'Last year’s return and this year’s rough income.',
+        'Any big purchase, sale or hire coming up.',
+        'Book the free call. No obligation.'
+      ]
+    }
+  ]);
+
+  // null = nothing picked yet, so the page shows the prospect's own headline and lead.
+  let sit = $state<number | null>(null);
+  const current = $derived(sit === null ? null : situations[sit]);
+  const heroTitle = $derived(current ? current.h1 : content.heroHeadline);
+  const heroLead = $derived(current ? current.lead : content.heroLead);
+  const formulaText = $derived(
+    current ? `=NEXT_STEPS("${current.label}")` : '=NEXT_STEPS(pick_a_cell)'
+  );
+  const cardTitle = $derived(current ? current.title : 'Not sure where to start?');
+  const cardTips = $derived(
+    current
+      ? current.tips
+      : [
+          'Pick the key above that fits and the steps update.',
+          'Not sure? The free 20-minute call sorts it out.',
+          'Fixed fees, agreed before we start.'
+        ]
+  );
+
+  // Time-aware badge. Empty on the server, filled on mount, so there is no hydration mismatch.
+  let now = $state<Date | null>(null);
+  const nowLabel = $derived(
+    now ? now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''
+  );
+  const liveLine = $derived.by(() => {
+    if (!now) return `Reply within ${content.responsePromise}.`;
+    const d = now.getDay();
+    const m = now.getMonth();
+    if (d === 0 || d === 6) return 'Weekend: first reply next business day.';
+    if (m <= 3) return `Filing season. Reply within ${content.responsePromise}.`;
+    return `Reply within ${content.responsePromise}.`;
+  });
+
+  // A trend line that swerves across the page. It is measured against the content blocks, so it
+  // ends in a spreadsheet cell wherever it would cross text and re-emerges in the gaps.
+  let root: HTMLElement | undefined = $state();
+  let pageSize = $state({ w: 0, h: 0 });
+  let blocks = $state<Rect[]>([]);
+  const trace = $derived(traceRuns(pageSize.w, pageSize.h, blocks));
+  const nodeGlyphs = ['Σ', '%', '=', 'π', '÷'];
+  const cellLabels = ['=SUM', 'B12', 'fx', 'C4', '=AVG', 'A1'];
+
+  function measure() {
+    if (!root) return;
+    const base = root.getBoundingClientRect();
+    const rects: Rect[] = [];
+    const bands = root.querySelectorAll(':scope > main > section, :scope > main > div, :scope > footer');
+    for (const band of bands) {
+      for (const child of band.children) {
+        if (child instanceof SVGElement) continue;
+        // Containers are walked one level down, so each column or card list is its own block.
+        const parts = child.matches('.container, .container-narrow, .hero-inner')
+          ? [...child.children]
+          : [child];
+        for (const el of parts) {
+          if (el instanceof SVGElement) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          rects.push({
+            left: r.left - base.left,
+            top: r.top - base.top,
+            right: r.right - base.left,
+            bottom: r.bottom - base.top
+          });
+        }
+      }
+    }
+    blocks = rects;
+    pageSize = { w: root.offsetWidth, h: root.offsetHeight };
+  }
+
+  onMount(() => {
+    const tick = () => (now = new Date());
+    tick();
+    const timer = setInterval(tick, 30000);
+    let ro: ResizeObserver | undefined;
+    if (root && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      ro.observe(root);
+      measure();
+    }
+    return () => {
+      clearInterval(timer);
+      ro?.disconnect();
+    };
+  });
 
   let scrollY = $state(0);
   let menuOpen = $state(false);
@@ -386,6 +560,15 @@
     if (tried) errs = validate(form);
   }
 
+  // Picking a situation also pre-fills the consultation form, so the choice carries through.
+  function pick(i: number) {
+    sit = i;
+    const s = situations[i];
+    if (s.clientType) form.clientType = s.clientType;
+    form.needs = [...s.needs];
+    if (tried) errs = validate(form);
+  }
+
   function toggleNeed(need: string, checked: boolean) {
     form.needs = checked ? [...form.needs, need] : form.needs.filter((n) => n !== need);
   }
@@ -417,7 +600,44 @@
 
 <svelte:window bind:scrollY />
 
-<div class="cpa-root" id="top">
+{#snippet edge(fill: string)}
+  <svg class="edge" aria-hidden="true" viewBox="0 0 1440 48" preserveAspectRatio="none">
+    <path
+      d="M0,48 V30 H80 V18 H160 V34 H240 V22 H320 V10 H400 V26 H480 V16 H560 V30 H640 V12 H720 V24 H800 V8 H880 V28 H960 V18 H1040 V32 H1120 V14 H1200 V26 H1280 V10 H1360 V22 H1440 V48Z"
+      {fill}
+    />
+    <path
+      class="edge-trace"
+      d="M0,30 L80,18 L160,34 L240,22 L320,10 L400,26 L480,16 L560,30 L640,12 L720,24 L800,8 L880,28 L960,18 L1040,32 L1120,14 L1200,26 L1280,10 L1360,22 L1440,22"
+    />
+  </svg>
+{/snippet}
+
+<div class="cpa-root" id="top" bind:this={root}>
+  {#if trace}
+    <svg class="trace" aria-hidden="true" width={pageSize.w} height={pageSize.h} viewBox="0 0 {pageSize.w} {pageSize.h}">
+      {#each trace.runs as run, i (i)}
+        <path d={run.d} class="trace-line" />
+        <path d={run.d} class="trace-pulse" pathLength="1000" />
+        {#each run.joints as j (j.x + ',' + j.y)}
+          <circle cx={j.x} cy={j.y} r="5" class="trace-point" />
+        {/each}
+        {#if run.node}
+          <g transform="translate({run.node.x} {run.node.y})">
+            <circle r="15" class="trace-node" />
+            <text class="trace-glyph" text-anchor="middle" dy="6">{nodeGlyphs[i % nodeGlyphs.length]}</text>
+          </g>
+        {/if}
+      {/each}
+      {#each trace.caps as cap, i (i)}
+        <g transform="translate({cap.x} {cap.y})">
+          <rect x="-22" y="-11" width="44" height="22" rx="3" class="trace-cell" />
+          <text class="trace-label" text-anchor="middle" dy="4">{cellLabels[i % cellLabels.length]}</text>
+          <rect x="19" y="8" width="6" height="6" class="trace-handle" />
+        </g>
+      {/each}
+    </svg>
+  {/if}
   <a href="#main" class="skip">Skip to content</a>
 
   <!-- Office facts and existing-client links. Deliberately quiet: never a prospect CTA. -->
@@ -561,11 +781,19 @@
   <main id="main">
     <!-- ---- hero ---- -->
     <section class="hero">
+      <svg class="glyphs" aria-hidden="true" viewBox="0 0 400 400">
+        <text x="40" y="90" class="glyph g1">Σ</text>
+        <text x="250" y="70" class="glyph g2">%</text>
+        <text x="330" y="210" class="glyph g1">π</text>
+        <text x="120" y="250" class="glyph g2">=</text>
+        <text x="260" y="360" class="glyph g1">÷</text>
+        <text x="30" y="370" class="glyph g2">√</text>
+      </svg>
       <div class="container hero-inner">
         <div>
           <p class="eyebrow">{content.eyebrow}</p>
-          <h1>{content.heroHeadline}</h1>
-          <p class="hero-lead">{content.heroLead}</p>
+          <h1>{heroTitle}</h1>
+          <p class="hero-lead">{heroLead}</p>
           <ul class="checks">
             <li>
               <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"
@@ -600,10 +828,38 @@
         </div>
 
         <figure class="hero-media">
-          <div class="photo photo-hero">
-            {#if content.photoCaptions}
-              <span class="photo-caption">{content.photoCaptions.hero}</span>
-            {/if}
+          <div class="sheet">
+            <div class="sheet-formula"><span class="sheet-fx">fx</span><span class="sheet-expr">{formulaText}</span></div>
+            <div class="calc-keys" role="group" aria-label="Your situation">
+              {#each situations as s, i (s.label)}
+                <button type="button" class="calc-key" class:on={sit === i} aria-pressed={sit === i} onclick={() => pick(i)}>
+                  <span class="calc-ref" aria-hidden="true">A{i + 1}</span>
+                  <span>{s.label}</span>
+                </button>
+              {/each}
+            </div>
+            <div class="sheet-grid">
+              <p class="sheet-title">{cardTitle}</p>
+              {#each cardTips as tip, i (tip)}
+                <div class="sheet-row"><span class="sheet-rownum" aria-hidden="true">{i + 1}</span><span>{tip}</span></div>
+              {/each}
+            </div>
+            <a class="btn-accent sheet-cta" href={content.bookingHref}>= Book a free 20-minute call</a>
+            <p class="sheet-note">General guidance, not tax advice. Please don’t send tax documents here.</p>
+          </div>
+          <div class="fx-badge fx-badge-live">
+            <span class="fx-cursor" aria-hidden="true"></span>
+            <span class="fx-text">
+              <strong>Today{nowLabel ? ` · ${nowLabel}` : ''}</strong>
+              <span>{liveLine}</span>
+            </span>
+          </div>
+          <div class="fx-badge fx-badge-sum">
+            <span class="fx-sigma" aria-hidden="true">Σ</span>
+            <span class="fx-text">
+              <strong>Fixed fees</strong>
+              <span>Agreed before we start</span>
+            </span>
           </div>
           {#if content.owner}
             <figcaption>
@@ -617,6 +873,7 @@
 
     <!-- ---- who we help ---- -->
     <section class="section section-alt" aria-labelledby="who-head">
+      {@render edge('#eef2ec')}
       <div class="container">
         <div class="sec-head center">
           <h2 id="who-head">Who we help</h2>
@@ -730,14 +987,20 @@
 
     <!-- ---- services ladder ---- -->
     <section id="services" class="section section-alt" aria-labelledby="svc-head">
+      {@render edge('#eef2ec')}
       <div class="container">
         <div class="sec-head">
           <p class="eyebrow">What we do</p>
           <h2 id="svc-head">Services that grow with you</h2>
           <p>Start where it hurts. Add the next rung when the business is ready.</p>
         </div>
+        <div class="sheet-tabs" role="group" aria-label="Filter services">
+          {#each serviceTabs as tab (tab)}
+            <button type="button" class="sheet-tab" class:on={serviceTab === tab} aria-pressed={serviceTab === tab} onclick={() => (serviceTab = tab)}>{tab}</button>
+          {/each}
+        </div>
         <div class="cards cards-3">
-          {#each services as service (service.title)}
+          {#each shownServices as service (service.title)}
             <div class="card service">
               <span class="chip-icon"
                 ><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"
@@ -797,6 +1060,7 @@
 
     <!-- ---- pricing ---- -->
     <section id="pricing" class="section section-alt" aria-labelledby="price-head">
+      {@render edge('#eef2ec')}
       <div class="container">
         <div class="sec-head">
           <p class="eyebrow">Fixed-fee packages</p>
@@ -963,6 +1227,7 @@
 
     <!-- ---- proof ---- -->
     <section id="reviews" class="section section-alt" aria-labelledby="proof-head">
+      {@render edge('#eef2ec')}
       <div class="container">
         <div class="sec-head">
           <p class="eyebrow">Proof</p>
@@ -1063,6 +1328,7 @@
 
     <!-- ---- security & software ---- -->
     <section class="section section-dark section-tight" aria-labelledby="sec-head">
+      {@render edge('#1f4d3a')}
       <div class="container security">
         <div>
           <p class="eyebrow eyebrow-light">Your data</p>
@@ -1122,6 +1388,7 @@
 
     <!-- ---- consultation ---- -->
     <section id="consult" class="section section-alt" aria-labelledby="consult-head">
+      {@render edge('#eef2ec')}
       <div class="container">
         <div class="sec-head">
           <p class="eyebrow">Let’s talk</p>
@@ -1439,6 +1706,9 @@
 <style>
   /* ---- scoped reset: app.css sets cursor:none, a serif stack and link colours ---- */
   .cpa-root {
+    position: relative;
+    overflow-x: clip;
+    --cpa-grid: rgba(31, 77, 58, 0.1);
     --cpa-primary: #1f4d3a;
     --cpa-primary-dark: #163b2c;
     --cpa-dark: #0f241b;
@@ -1579,6 +1849,7 @@
   }
 
   .section {
+    position: relative;
     padding: clamp(48px, 7vw, 88px) 0;
   }
 
@@ -1887,7 +2158,38 @@
 
   /* ---- hero ---- */
   .hero {
+    position: relative;
     padding: clamp(32px, 5vw, 64px) 0 clamp(48px, 7vw, 80px);
+    /* Graph-paper grid that fades out toward the lower left. */
+    background-image:
+      linear-gradient(var(--cpa-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--cpa-grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .glyphs {
+    position: absolute;
+    right: -60px;
+    top: -20px;
+    width: 560px;
+    height: 560px;
+    pointer-events: none;
+  }
+
+  .glyph {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 700;
+    font-size: 64px;
+  }
+
+  .glyph.g1 {
+    fill: #1f4d3a;
+    fill-opacity: 0.1;
+  }
+
+  .glyph.g2 {
+    fill: #a6671b;
+    fill-opacity: 0.16;
   }
 
   .hero-inner {
@@ -1976,10 +2278,6 @@
     color: var(--cpa-muted);
   }
 
-  .photo-hero {
-    aspect-ratio: 4 / 5;
-  }
-
   .photo-owner {
     aspect-ratio: 4 / 5;
   }
@@ -1991,6 +2289,8 @@
 
   .hero-media {
     margin: 0;
+    position: relative;
+    padding: 50px 0 52px;
   }
 
   .hero-media figcaption {
@@ -3084,6 +3384,386 @@
 
     .footer-grid {
       grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    }
+  }
+
+  /* ---- flair: calculator keys, spreadsheet card, skyline edges, trend-line trace ---- */
+  .sheet {
+    background: #fff;
+    border: 1px solid var(--cpa-line);
+    border-radius: 14px;
+    box-shadow: 0 24px 50px rgba(15, 36, 27, 0.16);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sheet-formula {
+    display: flex;
+    align-items: center;
+    background: #f3f5f0;
+    border-bottom: 1px solid var(--cpa-line);
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.82rem;
+  }
+
+  .sheet-fx {
+    padding: 8px 12px;
+    border-right: 1px solid var(--cpa-line);
+    font-style: italic;
+    font-weight: 700;
+    color: var(--cpa-primary);
+  }
+
+  .sheet-expr {
+    padding: 8px 12px;
+    color: var(--cpa-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calc-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px 16px 12px;
+  }
+
+  .calc-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 6px 12px;
+    border-radius: 9px;
+    border: 1.5px solid var(--cpa-line);
+    border-bottom-width: 4px;
+    background: #fff;
+    color: var(--cpa-ink);
+    font: 600 0.85rem Inter, system-ui, sans-serif;
+    box-sizing: border-box;
+    transition: transform 0.08s;
+  }
+
+  .calc-key:active {
+    transform: translateY(2px);
+    border-bottom-width: 2px;
+  }
+
+  .calc-key.on {
+    background: var(--cpa-primary);
+    border-color: var(--cpa-primary-dark);
+    color: #fff;
+  }
+
+  .calc-ref {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.7rem;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--cpa-bg-alt);
+    color: var(--cpa-primary);
+  }
+
+  .calc-key.on .calc-ref {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+  }
+
+  .sheet-grid {
+    margin: 0 16px;
+    border: 1px solid var(--cpa-line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .sheet-title {
+    margin: 0;
+    padding: 8px 12px;
+    background: #f3f5f0;
+    border-bottom: 1px solid var(--cpa-line);
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--cpa-primary);
+  }
+
+  .sheet-row {
+    display: flex;
+    align-items: flex-start;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    border-bottom: 1px solid var(--cpa-line-soft);
+  }
+
+  .sheet-row:last-child {
+    border-bottom: 0;
+  }
+
+  .sheet-rownum {
+    flex: none;
+    width: 32px;
+    align-self: stretch;
+    background: #f3f5f0;
+    border-right: 1px solid var(--cpa-line);
+    text-align: center;
+    padding-top: 9px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.75rem;
+    color: var(--cpa-muted);
+  }
+
+  .sheet-row > span:last-child {
+    padding: 9px 12px;
+  }
+
+  .sheet-cta {
+    margin: 14px 16px 0;
+    text-align: center;
+  }
+
+  .sheet-note {
+    margin: 0;
+    padding: 10px 16px 14px;
+    font-size: 0.78rem;
+    color: var(--cpa-muted);
+  }
+
+  .fx-badge {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid var(--cpa-line);
+    border-radius: 12px;
+    padding: 9px 14px;
+    box-shadow: 0 10px 26px rgba(15, 36, 27, 0.18);
+    animation: cpa-float 6s ease-in-out infinite;
+  }
+
+  .fx-badge-live {
+    left: -12px;
+    top: 0;
+    z-index: 2;
+    animation-duration: 5s;
+  }
+
+  .fx-badge-sum {
+    right: -12px;
+    bottom: 0;
+    animation-delay: 1s;
+  }
+
+  .fx-text {
+    line-height: 1.3;
+  }
+
+  .fx-text strong {
+    display: block;
+    font-size: 0.88rem;
+  }
+
+  .fx-text span {
+    font-size: 0.76rem;
+    color: var(--cpa-muted);
+  }
+
+  .fx-cursor {
+    width: 9px;
+    height: 20px;
+    background: var(--cpa-success);
+    animation: cpa-blink 1.1s steps(2, start) infinite;
+  }
+
+  .fx-sigma {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: var(--cpa-bg-alt);
+    color: var(--cpa-accent-dark);
+    font: 700 1.2rem Fraunces, Georgia, serif;
+  }
+
+  .sheet-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 22px;
+    border-bottom: 2px solid var(--cpa-primary);
+  }
+
+  .sheet-tab {
+    min-height: 44px;
+    padding: 6px 18px;
+    border: 1px solid var(--cpa-line);
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--cpa-ink);
+    font: 600 0.88rem Inter, system-ui, sans-serif;
+  }
+
+  .sheet-tab.on {
+    background: var(--cpa-primary);
+    border-color: var(--cpa-primary);
+    color: #fff;
+  }
+
+  .edge {
+    position: absolute;
+    left: 0;
+    top: -47px;
+    width: 100%;
+    height: 48px;
+    display: block;
+    pointer-events: none;
+  }
+
+  .edge-trace {
+    fill: none;
+    stroke: var(--cpa-accent);
+    stroke-width: 2;
+    stroke-opacity: 0.7;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--cpa-accent), transparent) no-repeat;
+    background-size: 30% 100%;
+    animation: cpa-tape 4s linear infinite;
+  }
+
+  /* Trend line: a faint line chart that swerves across the page with data points, a calculator
+     glyph on long stretches, and a selected spreadsheet cell where it dives behind content. It
+     sits above section backgrounds but below content: direct children of each band are lifted
+     above it, and the script ends the line before any block, so nothing crosses text. */
+  .trace {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .cpa-root :is(.section, .hero, .footer) > :not(svg) {
+    position: relative;
+    z-index: 2;
+  }
+
+  .trace-line {
+    fill: none;
+    stroke: var(--cpa-accent);
+    stroke-opacity: 0.55;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .trace-pulse {
+    fill: none;
+    stroke: var(--cpa-primary);
+    stroke-opacity: 0.5;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 12 88;
+    animation: cpa-trace 7s linear infinite;
+  }
+
+  .trace-point {
+    fill: #fff;
+    stroke: var(--cpa-accent);
+    stroke-opacity: 0.75;
+    stroke-width: 2.5;
+  }
+
+  .trace-node {
+    fill: #fff;
+    stroke: var(--cpa-accent);
+    stroke-opacity: 0.75;
+    stroke-width: 2;
+  }
+
+  .trace-glyph {
+    font: 700 18px Fraunces, Georgia, serif;
+    fill: var(--cpa-primary);
+    fill-opacity: 0.85;
+  }
+
+  .trace-cell {
+    fill: #fff;
+    fill-opacity: 0.92;
+    stroke: var(--cpa-primary);
+    stroke-opacity: 0.8;
+    stroke-width: 2;
+  }
+
+  .trace-label {
+    font: 600 10px ui-monospace, Consolas, monospace;
+    fill: var(--cpa-primary);
+  }
+
+  .trace-handle {
+    fill: var(--cpa-primary);
+    stroke: #fff;
+    stroke-width: 1.5;
+  }
+
+  @keyframes cpa-trace {
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
+
+  @keyframes cpa-tape {
+    from {
+      background-position: -40% 0;
+    }
+    to {
+      background-position: 140% 0;
+    }
+  }
+
+  @keyframes cpa-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  @keyframes cpa-blink {
+    to {
+      visibility: hidden;
+    }
+  }
+
+  @media (max-width: 899px) {
+    .trace {
+      display: none;
+    }
+    .glyphs {
+      width: 360px;
+      height: 360px;
+      right: -120px;
+    }
+    .fx-badge-live {
+      left: 0;
+    }
+    .fx-badge-sum {
+      right: 0;
     }
   }
 

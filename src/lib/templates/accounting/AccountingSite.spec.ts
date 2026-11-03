@@ -284,3 +284,19 @@ describe('AccountingSite jurisdiction wording', () => {
     expect(ca).toContain('Provincial dates usually follow');
   });
 });
+
+describe('AccountingSite flair', () => {
+  const html = render(AccountingSite, { props: { content: turk } }).body.replace(/\s+/g, ' ');
+
+  it('offers every situation as a calculator key and keeps the prospect headline by default', () => {
+    for (const label of ['Books are behind', 'Tax deadline coming', 'Starting a business', 'Plan to pay less tax']) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain(turk.heroHeadline);
+    expect(html).toContain('=NEXT_STEPS(pick_a_cell)');
+  });
+
+  it('shows every service until a tab is picked', () => {
+    expect(html.match(/class="card service/g)?.length).toBe(6);
+  });
+});
