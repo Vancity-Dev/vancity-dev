@@ -1,13 +1,13 @@
 <script lang="ts">
   // Ported from Claude Design project "Defense Law Firm Template" (Midnight & Brass), with the
-  // flair pass: a colour ribbon, wavy section edges, a "tell us what's going on" card that
+  // flair pass: a dotted brass thread, wavy section edges, a "tell us what's going on" card that
   // personalises the hero, a time-aware live badge and a results filter.
   // Credentials, results and reviews render only when the content supplies them, so a
   // derived prospect site never shows an invented claim.
 
   import { onMount } from 'svelte';
   import type { DefenseContent } from './types';
-  import { ribbonBands } from './ribbon';
+  import { threadPath } from './ribbon';
 
   let { content }: { content: DefenseContent } = $props();
 
@@ -137,10 +137,10 @@
     return 'No hold music.';
   });
 
-  // The ribbon spans the whole page, so it is rebuilt whenever the page resizes.
+  // The thread spans the whole page, so it is rebuilt whenever the page resizes.
   let root: HTMLElement | undefined = $state();
   let size = $state({ w: 0, h: 0 });
-  const bands = $derived(ribbonBands(size.w, size.h, ['#14233c', '#c9a15a', '#6f8fb0']));
+  const thread = $derived(threadPath(size.w, size.h));
 
   onMount(() => {
     const tick = () => (now = new Date());
@@ -213,11 +213,12 @@
 
 <div class="df-root" bind:this={root}>
   <svg class="ribbon" aria-hidden="true" viewBox="0 0 {size.w || 1} {size.h || 1}">
-    <g fill="none" stroke-linejoin="round">
-      {#each bands as b (b.color)}
-        <path d={b.d} stroke={b.color} stroke-width={b.width} />
+    {#if thread}
+      <path d={thread.d} fill="none" stroke="#c9a15a" stroke-width="3" stroke-linecap="round" stroke-dasharray="0 12" opacity="0.7" />
+      {#each thread.dots as p (p.x + ',' + p.y)}
+        <circle cx={p.x} cy={p.y} r="8" fill="#faf9f6" stroke="#c9a15a" stroke-width="3" />
       {/each}
-    </g>
+    {/if}
   </svg>
 
   <a href="#main" class="skip">Skip to content</a>
@@ -695,7 +696,6 @@
     height: 100%;
     z-index: 1;
     pointer-events: none;
-    opacity: 0.2;
   }
   .skip {
     position: absolute;

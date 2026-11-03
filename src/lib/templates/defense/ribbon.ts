@@ -1,26 +1,21 @@
-export interface RibbonBand {
-  color: string;
-  width: number;
+export interface Thread {
   d: string;
+  dots: { x: number; y: number }[];
 }
 
-// A smooth S-curve in a 1000x1000 box, scaled to the page, then offset sideways into parallel
-// bands. Ported from the Websidy design's ribbon; kept pure so it can be tested without a DOM.
+// A smooth S-curve in a 1000x1000 box, scaled to the page: one dotted hairline with a few node
+// markers, like a case timeline. Kept pure so it can be tested without a DOM.
 const BASE =
   'M1080,20 C820,40 760,90 900,130 S1020,200 640,230 S-60,260 90,330 S560,420 860,450 S1060,560 700,600 S-40,640 120,720 S700,780 880,830 S640,930 500,1020';
 
-export function ribbonBands(
-  width: number,
-  height: number,
-  colors: string[],
-  bandWidth = 56
-): RibbonBand[] {
-  if (!width || !height || colors.length === 0) return [];
+type Pt = [number, number];
+
+export function threadPath(width: number, height: number): Thread | null {
+  if (!width || !height) return null;
   const nums = (BASE.match(/-?\d+\.?\d*/g) ?? []).map(Number);
-  const P: [number, number][] = [];
+  const P: Pt[] = [];
   for (let i = 0; i < nums.length; i += 2) P.push([(nums[i] * width) / 1000, (nums[i + 1] * height) / 1000]);
 
-  type Pt = [number, number];
   const segs: [Pt, Pt, Pt, Pt][] = [];
   let cur = P[0];
   let prevC2 = P[2];
@@ -46,23 +41,11 @@ export function ribbonBands(
     }
   });
 
-  const last = pts.length - 1;
-  const normals = pts.map((_, i) => {
-    const a = pts[Math.max(0, i - 1)];
-    const b = pts[Math.min(last, i + 1)];
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const len = Math.hypot(dx, dy) || 1;
-    return [-dy / len, dx / len];
-  });
-
-  return colors.map((color, k) => {
-    const off = (k - (colors.length - 1) / 2) * bandWidth;
-    const d =
-      'M' +
-      pts
-        .map((pt, i) => `${(pt[0] + normals[i][0] * off).toFixed(1)},${(pt[1] + normals[i][1] * off).toFixed(1)}`)
-        .join(' L');
-    return { color, width: bandWidth + 1, d };
-  });
+  const d = 'M' + pts.map((pt) => `${pt[0].toFixed(1)},${pt[1].toFixed(1)}`).join(' L');
+  const step = Math.floor(pts.length / 6);
+  const dots: Thread['dots'] = [];
+  for (let i = Math.floor(pts.length / 12); i < pts.length; i += step) {
+    dots.push({ x: +pts[i][0].toFixed(1), y: +pts[i][1].toFixed(1) });
+  }
+  return { d, dots };
 }

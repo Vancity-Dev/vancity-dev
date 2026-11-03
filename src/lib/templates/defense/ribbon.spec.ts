@@ -1,19 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { ribbonBands } from './ribbon';
+import { threadPath } from './ribbon';
 
-describe('ribbonBands', () => {
-  it('returns one path per colour, each a long polyline', () => {
-    const bands = ribbonBands(1200, 6000, ['#111', '#222', '#333']);
-    expect(bands.map((b) => b.color)).toEqual(['#111', '#222', '#333']);
-    for (const b of bands) {
-      expect(b.d.startsWith('M')).toBe(true);
-      expect(b.d.split(' L').length).toBeGreaterThan(200);
-      expect(b.width).toBe(57);
-    }
+describe('threadPath', () => {
+  it('returns a long polyline with a handful of node markers', () => {
+    const t = threadPath(1200, 6000);
+    expect(t?.d.startsWith('M')).toBe(true);
+    expect(t!.d.split(' L').length).toBeGreaterThan(200);
+    expect(t!.dots.length).toBeGreaterThanOrEqual(5);
+    expect(t!.dots.length).toBeLessThanOrEqual(8);
   });
 
-  it('is empty until the page has a size', () => {
-    expect(ribbonBands(0, 500, ['#111'])).toEqual([]);
-    expect(ribbonBands(500, 0, ['#111'])).toEqual([]);
+  it('is null until the page has a size', () => {
+    expect(threadPath(0, 500)).toBeNull();
+    expect(threadPath(500, 0)).toBeNull();
   });
 });
