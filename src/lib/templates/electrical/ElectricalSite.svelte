@@ -97,6 +97,23 @@
     baseServices.map((s) => ({ ...s, href: content.serviceHrefs[s.title] ?? '#book' }))
   );
 
+  // Service filter chips. The grid is the full list until a visitor narrows it.
+  const serviceCats: Record<string, string> = {
+    'Emergency Repair': 'Repairs',
+    'Outlets, GFCI & Surge': 'Repairs',
+    'Panel Upgrades': 'Upgrades',
+    'Rewiring & Older Homes': 'Upgrades',
+    'EV Charger Installation': 'Installs',
+    'Whole-Home Generators': 'Installs',
+    'Lighting & Recessed': 'Installs',
+    Commercial: 'Commercial'
+  };
+  const serviceFilters = ['All', 'Repairs', 'Upgrades', 'Installs', 'Commercial'];
+  let serviceFilter = $state('All');
+  const shownServices = $derived(
+    serviceFilter === 'All' ? services : services.filter((s) => serviceCats[s.title] === serviceFilter)
+  );
+
   const serviceNames = [...baseServices.map((s) => s.title), 'Something else'];
 
   const trust = $derived([
@@ -246,17 +263,137 @@
 
   type Errors = { name?: boolean; phone?: boolean; zip?: boolean; service?: boolean };
 
+  // "Flip the breaker" situations: each one re-words the hero and the do-this-now steps, and
+  // pre-fills the estimate form. Safety copy stays general; fire or downed lines always means 911.
+  const situations = $derived([
+    {
+      label: 'Power out or sparks',
+      service: 'Emergency Repair',
+      urgency: 'Emergency',
+      h1: `Power out or sparking in ${content.city}? Call an electrician now.`,
+      lead: 'Leave the area if you smell burning or see sparks. We answer 24/7 and come now.',
+      tipsTitle: 'Do this now',
+      tips: [
+        'Burning smell, smoke or fire? Leave and call 911 first.',
+        'Stay away from sparking outlets, panels and downed lines.',
+        'If it’s safe, switch off the main breaker, then call us.'
+      ],
+      cta: `Call ${content.phoneDisplay} now`,
+      href: content.phoneHref
+    },
+    {
+      label: 'Breaker keeps tripping',
+      service: 'Panel Upgrades',
+      urgency: 'Repair',
+      h1: `Breaker tripping again in ${content.city}? Find out why, safely.`,
+      lead: 'A breaker that trips often is telling you something. We check the circuit before we quote.',
+      tipsTitle: 'Before you call',
+      tips: [
+        'Note which breaker trips and what was running.',
+        'Unplug heavy appliances on that circuit.',
+        'Don’t keep resetting it. Let us take a look.'
+      ],
+      cta: 'Get a free estimate',
+      href: '#book'
+    },
+    {
+      label: 'Adding an EV charger',
+      service: 'EV Charger Installation',
+      urgency: 'Project quote',
+      h1: `Adding an EV charger in ${content.city}? We check your panel first.`,
+      lead: 'A load calculation shows whether your panel can take it, before you spend a dollar.',
+      tipsTitle: 'What helps',
+      tips: [
+        'Tell us the car and where you park it.',
+        'A photo of your panel label speeds things up.',
+        'We handle the permit and inspection.'
+      ],
+      cta: 'Get a free estimate',
+      href: '#book'
+    },
+    {
+      label: 'Older home wiring',
+      service: 'Rewiring & Older Homes',
+      urgency: 'Project quote',
+      h1: `Older home in ${content.city}? Let’s check the wiring.`,
+      lead: 'Flickering lights, warm outlets or a buzzing panel are worth a professional look.',
+      tipsTitle: 'What to look for',
+      tips: [
+        'Flickering lights or warm outlets.',
+        'Two-prong outlets or aluminum wiring.',
+        'A fuse box or an old panel label.'
+      ],
+      cta: 'Get a free estimate',
+      href: '#book'
+    },
+    {
+      label: 'New lights or outlets',
+      service: 'Lighting & Recessed',
+      urgency: 'Project quote',
+      h1: `Planning new lighting or outlets in ${content.city}? Get a clear price.`,
+      lead: 'Dimmable recessed layouts, extra outlets and surge protection, priced up front.',
+      tipsTitle: 'What helps',
+      tips: [
+        'Sketch where you want lights or outlets.',
+        'Tell us the ceiling type if you know it.',
+        'You approve the price before we start.'
+      ],
+      cta: 'Get a free estimate',
+      href: '#book'
+    }
+  ]);
+
+  // null = nothing picked yet, so the page shows the prospect's own headline and lead.
+  let sit = $state<number | null>(null);
+  const current = $derived(sit === null ? null : situations[sit]);
+  const heroTitle = $derived(current ? current.h1 : content.heroHeadline);
+  const heroLead = $derived(current ? current.lead : content.heroLead);
+  const cardTipsTitle = $derived(current ? current.tipsTitle : 'Not sure where to start?');
+  const cardTips = $derived(
+    current
+      ? current.tips
+      : [
+          'Pick what fits above and we’ll tailor the next steps.',
+          'Emergency? Call, don’t fill out a form.',
+          'Everything else: a free written estimate.'
+        ]
+  );
+  const cardCta = $derived(current ? current.cta : `Call ${content.phoneDisplay} — 24/7`);
+  const cardHref = $derived(current ? current.href : content.phoneHref);
+
+  // Time-aware badge. Empty on the server, filled on mount, so there is no hydration mismatch.
+  let now = $state<Date | null>(null);
+  const nowLabel = $derived(
+    now ? now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''
+  );
+  const liveLine = $derived.by(() => {
+    if (!now) return 'A real person picks up.';
+    const h = now.getHours();
+    const d = now.getDay();
+    if (h >= 21 || h < 6) return 'Lights out at night? Call anyway.';
+    if (d === 0 || d === 6) return 'Weekends too.';
+    return 'No hold music.';
+  });
+
   // A conduit run down the page gutter. It follows the page height, so it is rebuilt on resize.
   let root: HTMLElement | undefined = $state();
   let pageHeight = $state(0);
   const wire = $derived(wirePath(pageHeight));
   onMount(() => {
-    if (!root || typeof ResizeObserver === 'undefined') return;
-    const el = root;
-    const ro = new ResizeObserver(() => (pageHeight = el.offsetHeight));
-    ro.observe(el);
-    pageHeight = el.offsetHeight;
-    return () => ro.disconnect();
+    const tick = () => (now = new Date());
+    tick();
+    const timer = setInterval(tick, 30000);
+    let ro: ResizeObserver | undefined;
+    if (root && typeof ResizeObserver !== 'undefined') {
+      const el = root;
+      ro = new ResizeObserver(() => (pageHeight = el.offsetHeight));
+      ro.observe(el);
+      pageHeight = el.offsetHeight;
+    }
+    return () => {
+      clearInterval(timer);
+      ro?.disconnect();
+    };
   });
 
   let scrollY = $state(0);
@@ -292,6 +429,14 @@
     };
   }
 
+  // Picking a situation also pre-fills the estimate form, so the choice carries through.
+  function pick(i: number) {
+    sit = i;
+    form.service = situations[i].service;
+    form.urgency = situations[i].urgency;
+    if (tried) errs = validate(form);
+  }
+
   function revalidate() {
     if (tried) errs = validate(form);
   }
@@ -322,6 +467,19 @@
 </svelte:head>
 
 <svelte:window bind:scrollY />
+
+{#snippet ac(fill: string)}
+  <svg class="ac" aria-hidden="true" viewBox="0 0 1440 48" preserveAspectRatio="none">
+    <path
+      d="M0,24 C120,-6 240,54 360,24 S600,-6 720,24 S960,54 1080,24 S1320,-6 1440,24 L1440,48 L0,48Z"
+      {fill}
+    />
+    <path
+      class="ac-trace"
+      d="M0,24 C120,-6 240,54 360,24 S600,-6 720,24 S960,54 1080,24 S1320,-6 1440,24"
+    />
+  </svg>
+{/snippet}
 
 <div class="el-root" bind:this={root}>
   {#if wire}
@@ -409,13 +567,20 @@
     <span id="top"></span>
 
     <section class="hero">
+      <svg class="rings" aria-hidden="true" viewBox="0 0 400 400" fill="none">
+        <circle cx="200" cy="200" r="190" stroke="#cdd8e4" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round" />
+        <circle cx="200" cy="200" r="150" stroke="#cdd8e4" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round" />
+        <circle cx="200" cy="200" r="110" stroke="#f1c978" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round" />
+        <circle cx="200" cy="200" r="70" stroke="#f1c978" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round" />
+        <circle cx="332" cy="82" r="9" fill="#f5a524" />
+      </svg>
       <div class="hero-inner">
         <div>
           <span class="pill"
             ><span class="pill-dot" aria-hidden="true"></span>{content.availabilityPill}</span
           >
-          <h1>{content.heroHeadline}</h1>
-          <p class="hero-lead">{content.heroLead}</p>
+          <h1>{heroTitle}</h1>
+          <p class="hero-lead">{heroLead}</p>
           <ul class="checklist">
             <li>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icons.check} /></svg>
@@ -455,9 +620,31 @@
         </div>
 
         <div class="hero-media">
-          <div class="photo-slot hero-photo" aria-hidden={content.photoCaptions ? undefined : 'true'}
-            class:bare={!content.photoCaptions}>
-            {#if content.photoCaptions}<span>{content.photoCaptions.hero}</span>{/if}
+          <div class="scard">
+            <p class="scard-eyebrow">What’s going on? Flip the breaker.</p>
+            <div class="breakers" role="group" aria-label="Your situation">
+              {#each situations as s, i (s.label)}
+                <button type="button" class="brk" class:on={sit === i} aria-pressed={sit === i} onclick={() => pick(i)}>
+                  <span class="brk-switch" aria-hidden="true"><span class="brk-knob"></span></span>
+                  <span>{s.label}</span>
+                </button>
+              {/each}
+            </div>
+            <div class="scard-tips">
+              <p class="scard-tips-title">{cardTipsTitle}</p>
+              {#each cardTips as t, i (t)}
+                <div class="scard-tip"><span class="scard-num">{i + 1}</span><span>{t}</span></div>
+              {/each}
+            </div>
+            <a href={cardHref} class="btn-accent btn-lg scard-cta">{cardCta}</a>
+            <p class="scard-note">General information. For fire or downed lines, call 911 first.</p>
+          </div>
+          <div class="float-card float-card-live">
+            <span class="float-icon float-icon-green" aria-hidden="true"><span class="live-dot"></span></span>
+            <span class="float-text">
+              <strong>Answering now{nowLabel ? ` · ${nowLabel}` : ''}</strong>
+              <span>{liveLine}</span>
+            </span>
           </div>
           <div class="float-card float-card-left">
             <span class="float-icon float-icon-green" aria-hidden="true">
@@ -486,6 +673,7 @@
     </section>
 
     <section class="trust" aria-label="Why homeowners trust us">
+      {@render ac('#0f172a')}
       <div class="trust-inner">
         {#each trust as t (t.title)}
           <div class="trust-item">
@@ -532,8 +720,17 @@
           >
         </div>
 
+        <div class="breakers service-filters" role="group" aria-label="Filter services">
+          {#each serviceFilters as f (f)}
+            <button type="button" class="brk" class:on={serviceFilter === f} aria-pressed={serviceFilter === f} onclick={() => (serviceFilter = f)}>
+              <span class="brk-switch" aria-hidden="true"><span class="brk-knob"></span></span>
+              <span>{f}</span>
+            </button>
+          {/each}
+        </div>
+
         <div class="service-grid">
-          {#each services as s (s.title)}
+          {#each shownServices as s (s.title)}
             <a href={s.href} class="service-card" class:featured={s.featured}>
               <span class="service-icon" aria-hidden="true">
                 <svg width="26" height="26" viewBox="0 0 24 24"><path d={s.icon} /></svg>
@@ -549,7 +746,7 @@
         </div>
 
         <div class="service-list">
-          {#each services as s (s.title)}
+          {#each shownServices as s (s.title)}
             <a href={s.href} class="service-row" class:featured={s.featured}>
               <span class="service-icon" aria-hidden="true">
                 <svg width="22" height="22" viewBox="0 0 24 24"><path d={s.icon} /></svg>
@@ -563,6 +760,7 @@
     </section>
 
     <section id="ev" class="section section-alt">
+      {@render ac('#f5f7fa')}
       <div class="container ev-inner">
         <div>
           <p class="eyebrow">EV &amp; panel spotlight</p>
@@ -663,6 +861,7 @@
     </section>
 
     <section id="pricing" class="section section-dark">
+      {@render ac('#0f172a')}
       <div class="container">
         <p class="eyebrow eyebrow-gold">Pricing, financing &amp; guarantee</p>
         <h2 class="pricing-head">The price we quote is the price you pay</h2>
@@ -757,6 +956,7 @@
     </section>
 
     <section id="area" class="section section-alt">
+      {@render ac('#f5f7fa')}
       <div class="container area-inner">
         <div>
           <p class="eyebrow">Service area</p>
@@ -805,6 +1005,7 @@
     </section>
 
     <section id="book" class="section section-dark">
+      {@render ac('#0f172a')}
       <div class="container book-inner">
         <div>
           <p class="eyebrow eyebrow-gold">Free estimate</p>
@@ -1139,6 +1340,7 @@
   }
 
   .section {
+    position: relative;
     padding: clamp(56px, 8vw, 96px) 0;
   }
 
@@ -1442,11 +1644,23 @@
 
   /* ---- hero ---- */
   .hero {
+    position: relative;
     background: var(--el-bg-alt);
     padding: clamp(40px, 6vw, 80px) 0;
   }
 
+  .rings {
+    position: absolute;
+    right: -140px;
+    top: -60px;
+    width: 720px;
+    height: 720px;
+    pointer-events: none;
+  }
+
   .hero-inner {
+    position: relative;
+    z-index: 2;
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 clamp(16px, 4vw, 32px);
@@ -1547,7 +1761,7 @@
 
   .hero-media {
     position: relative;
-    padding-bottom: 28px;
+    padding: 44px 0 52px;
   }
 
   .photo-slot {
@@ -1574,12 +1788,8 @@
     max-width: 24em;
   }
 
-  .hero-photo {
-    height: clamp(320px, 42vw, 540px);
-    box-shadow: 0 20px 40px rgba(10, 31, 51, 0.14);
-  }
-
   .float-card {
+    animation: el-float 6s ease-in-out infinite;
     position: absolute;
     background: #fff;
     border-radius: 14px;
@@ -1597,7 +1807,23 @@
 
   .float-card-right {
     right: -12px;
-    top: 24px;
+    bottom: 0;
+    animation-delay: 1s;
+  }
+
+  .float-card-live {
+    left: -12px;
+    top: 0;
+    z-index: 2;
+    animation-duration: 5s;
+  }
+
+  .live-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--el-green);
+    animation: el-pulse 1.8s infinite;
   }
 
   .float-icon {
@@ -1633,6 +1859,7 @@
 
   /* ---- trust bar ---- */
   .trust {
+    position: relative;
     background: var(--el-dark);
     color: #fff;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -2816,6 +3043,207 @@
     }
   }
 
+  /* ---- flair: breaker switches, situation card, AC-wave edges, header current ---- */
+  .scard {
+    background: #fff;
+    border-radius: 16px;
+    padding: 26px;
+    box-shadow: 0 24px 50px rgba(10, 31, 51, 0.18);
+    border: 1px solid var(--el-line);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .scard-eyebrow {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--el-accent);
+  }
+
+  .breakers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .brk {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 6px 14px 6px 8px;
+    border-radius: 10px;
+    border: 1.5px solid var(--el-field);
+    background: #fff;
+    color: var(--el-ink);
+    font: 600 14px Inter, system-ui, sans-serif;
+    box-sizing: border-box;
+    transition: background 0.15s;
+  }
+
+  .brk.on {
+    background: var(--el-primary);
+    border-color: var(--el-primary);
+    color: #fff;
+  }
+
+  .brk-switch {
+    flex: none;
+    width: 34px;
+    height: 20px;
+    border-radius: 6px;
+    background: #94a3b8;
+    position: relative;
+    transition: background 0.15s;
+  }
+
+  .brk.on .brk-switch {
+    background: var(--el-gold);
+  }
+
+  .brk-knob {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.4);
+    transition: transform 0.15s;
+  }
+
+  .brk.on .brk-knob {
+    transform: translateX(14px);
+  }
+
+  .service-filters {
+    margin-bottom: 24px;
+  }
+
+  .scard-tips {
+    border-top: 1px solid var(--el-line);
+    padding-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .scard-tips-title {
+    margin: 0;
+    font: 700 20px Oswald, Inter, sans-serif;
+    color: var(--el-primary);
+  }
+
+  .scard-tip {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .scard-num {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--el-bg-alt);
+    color: var(--el-primary);
+    font-weight: 700;
+    font-size: 14px;
+    display: grid;
+    place-items: center;
+  }
+
+  .scard-cta {
+    align-self: stretch;
+    text-align: center;
+  }
+
+  .scard-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--el-muted);
+  }
+
+  .ac {
+    position: absolute;
+    left: 0;
+    top: -47px;
+    width: 100%;
+    height: 48px;
+    display: block;
+    pointer-events: none;
+  }
+
+  .ac-trace {
+    fill: none;
+    stroke: var(--el-gold);
+    stroke-width: 2;
+    stroke-opacity: 0.7;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--el-gold), transparent) no-repeat;
+    background-size: 30% 100%;
+    animation: el-current 4s linear infinite;
+  }
+
+  @keyframes el-current {
+    from {
+      background-position: -40% 0;
+    }
+    to {
+      background-position: 140% 0;
+    }
+  }
+
+  @keyframes el-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  @keyframes el-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.5);
+    }
+    100% {
+      box-shadow: 0 0 0 10px rgba(21, 128, 61, 0);
+    }
+  }
+
+  @media (max-width: 899px) {
+    .rings {
+      width: 420px;
+      height: 420px;
+      right: -160px;
+    }
+    .float-card-live {
+      left: 0;
+    }
+    .float-card-right {
+      right: 0;
+    }
+  }
+
   /* Conduit run: a thin wire in the left gutter, a gold pulse travelling along it, and a bolt
      junction at each jog. Decorative only; hidden where the gutter is too narrow to hold it. */
   .wire {
@@ -2865,7 +3293,10 @@
     .el-root :global(*) {
       transition: none !important;
     }
-    .wire-current {
+    .wire-current,
+    .header::after,
+    .float-card,
+    .live-dot {
       animation: none;
     }
   }

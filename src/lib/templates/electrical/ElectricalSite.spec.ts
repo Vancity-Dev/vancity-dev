@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from 'svelte/server';
 import ElectricalSite from './ElectricalSite.svelte';
 import { deriveElectricalContent } from './derive';
+import { northlineDefaults } from './defaults';
 
 // Anything from the Northline showcase must never reach a prospect page.
 const LEAK_STRINGS = [
@@ -56,5 +57,21 @@ describe('ElectricalSite for a derived prospect', () => {
   it('renders eight services and the EV spotlight', () => {
     expect(html.match(/class="service-card/g)?.length).toBe(8);
     expect(html).toContain('Do I need a panel upgrade?');
+  });
+});
+
+describe('ElectricalSite flair', () => {
+  it('offers every situation as a breaker switch and keeps the prospect headline by default', () => {
+    const html = render(ElectricalSite, { props: { content: northlineDefaults } }).body.replace(/\s+/g, ' ');
+    for (const label of ['Power out or sparks', 'Breaker keeps tripping', 'Adding an EV charger', 'Older home wiring', 'New lights or outlets']) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain(northlineDefaults.heroHeadline);
+    expect(html).toContain('call 911 first');
+  });
+
+  it('renders every service until a filter is picked', () => {
+    const html = render(ElectricalSite, { props: { content: northlineDefaults } }).body;
+    expect(html.match(/class="service-card/g)?.length).toBe(8);
   });
 });
