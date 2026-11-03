@@ -17,6 +17,10 @@
     <span class="tile-name">New prospect</span>
     <span class="tile-note">Build a personalized site for a business in about a minute.</span>
   </a>
+  <a class="tile" href={resolve('/admin/images')}>
+    <span class="tile-name">Template images</span>
+    <span class="tile-note">Upload the photos each template shows, spot by spot.</span>
+  </a>
 </nav>
 
 <style>

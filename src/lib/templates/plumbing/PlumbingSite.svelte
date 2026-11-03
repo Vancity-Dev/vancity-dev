@@ -5,10 +5,11 @@
   // media queries here so the page renders correctly on the server.
 
   import { onMount } from 'svelte';
+  import type { SitePhotos } from '$lib/templates/photos';
   import type { PlumbingContent } from './types';
   import { pipeRuns, type Rect } from './pipe';
 
-  let { content }: { content: PlumbingContent } = $props();
+  let { content, photos = {} }: { content: PlumbingContent; photos?: SitePhotos } = $props();
 
   const icons = {
     bolt: 'M7 2v11h3v9l7-12h-4l4-8z',
@@ -818,9 +819,9 @@
     <section class="section">
       <div class="container why-inner">
         <div class="why-media">
-          <div class="photo-slot why-photo" aria-hidden={content.photoCaptions ? undefined : 'true'}
-            class:bare={!content.photoCaptions}>
-            {#if content.photoCaptions}<span>{content.photoCaptions.team}</span>{/if}
+          <div class="photo-slot why-photo" aria-hidden={photos.team || content.photoCaptions ? undefined : 'true'}
+            class:bare={!content.photoCaptions && !photos.team} class:filled={!!photos.team}>
+            {#if photos.team}<img src={photos.team.src} alt={photos.team.alt} loading="lazy" decoding="async" />{:else if content.photoCaptions}<span>{content.photoCaptions.team}</span>{/if}
           </div>
           {#if content.socialProof}
             <div class="years-badge">
@@ -985,9 +986,9 @@
             Not sure if we cover you? <a href={content.phoneHref} class="text-link">Call {content.phoneDisplay}</a>
           </p>
         </div>
-        <div class="photo-slot map-photo" aria-hidden={content.photoCaptions ? undefined : 'true'}
-            class:bare={!content.photoCaptions}>
-          {#if content.photoCaptions}<span>{content.photoCaptions.map}</span>{/if}
+        <div class="photo-slot map-photo" aria-hidden={photos.map || content.photoCaptions ? undefined : 'true'}
+            class:bare={!content.photoCaptions && !photos.map} class:filled={!!photos.map}>
+          {#if photos.map}<img src={photos.map.src} alt={photos.map.alt} loading="lazy" decoding="async" />{:else if content.photoCaptions}<span>{content.photoCaptions.map}</span>{/if}
         </div>
       </div>
     </section>
@@ -1784,6 +1785,20 @@
   /* No caption: a plain tonal panel, so nothing reads as a placeholder. */
   .photo-slot.bare {
     border: 1px solid transparent;
+  }
+
+  /* An uploaded photo replaces the placeholder panel entirely. */
+  .photo-slot.filled {
+    display: block;
+    padding: 0;
+    border-color: transparent;
+  }
+
+  .photo-slot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .photo-slot span {
