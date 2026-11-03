@@ -2300,7 +2300,13 @@
   }
 
   /* ---- section heads ---- */
+  /* The marketing stylesheet also defines .sec-head as a two-column grid with 140px of top
+     padding, which squeezed these headings into a narrow column. Reset it here. */
   .sec-head {
+    display: block;
+    grid-template-columns: none;
+    gap: 0;
+    padding-top: 0;
     max-width: 64ch;
     margin-bottom: 34px;
   }
