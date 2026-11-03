@@ -4,6 +4,7 @@ const PERMISSIVE = `# allow crawling everything by default, except the unlisted 
 User-agent: *
 Disallow: /demo/bathroom
 Disallow: /demo/prim-bath
+Disallow: /demo/powder-not-wider
 `;
 
 // Prospect sites are meant to read as the prospect's own finished site, so they must never
