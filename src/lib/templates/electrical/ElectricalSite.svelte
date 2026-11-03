@@ -3246,17 +3246,25 @@
 
   /* Conduit run: a thin wire in the left gutter, a gold pulse travelling along it, and a bolt
      junction at each jog. Decorative only; hidden where the gutter is too narrow to hold it. */
+  /* Sits above section backgrounds (so it shows on dark and tinted bands) but below every piece
+     of content: direct children of each band are lifted above it, and it is faint enough that
+     text crossing it keeps its contrast. */
   .wire {
     position: absolute;
-    left: 0;
+    right: clamp(24px, 9vw, 150px);
     top: 0;
     z-index: 1;
     pointer-events: none;
   }
+
+  .el-root :is(.section, .trust, .hero, .alert-strip, .cta-band, .footer) > :not(svg) {
+    position: relative;
+    z-index: 2;
+  }
   .wire-line {
     fill: none;
     stroke: #8b9bb0;
-    stroke-opacity: 0.55;
+    stroke-opacity: 0.3;
     stroke-width: 2;
     stroke-linecap: round;
   }
@@ -3266,16 +3274,21 @@
     stroke-width: 3;
     stroke-linecap: round;
     stroke-dasharray: 14 86;
+    stroke-opacity: 0.55;
     animation: wire-flow 7s linear infinite;
   }
   .wire-node {
     fill: #fff;
+    fill-opacity: 0.85;
     stroke: #8b9bb0;
+    stroke-opacity: 0.5;
     stroke-width: 2;
   }
   .wire-bolt {
     fill: var(--el-gold);
+    fill-opacity: 0.8;
     stroke: #8a5a00;
+    stroke-opacity: 0.6;
     stroke-width: 1;
   }
   @keyframes wire-flow {
@@ -3283,7 +3296,7 @@
       stroke-dashoffset: -100;
     }
   }
-  @media (max-width: 1239px) {
+  @media (max-width: 899px) {
     .wire {
       display: none;
     }
