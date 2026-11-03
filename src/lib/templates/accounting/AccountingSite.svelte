@@ -6,10 +6,11 @@
   // absent for a derived prospect — see derive.ts.
 
   import { onMount } from 'svelte';
+  import type { SitePhotos } from '$lib/templates/photos';
   import type { AccountingContent } from './types';
   import { traceRuns, type Rect } from './trace';
 
-  let { content }: { content: AccountingContent } = $props();
+  let { content, photos = {} }: { content: AccountingContent; photos?: SitePhotos } = $props();
 
   const icons = {
     lock: 'M18 8h-1V6A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9V6z',
@@ -1168,8 +1169,10 @@
             <p>You will know exactly who is doing your work, and you can call them.</p>
           </div>
           <div class="owner">
-            <div class="photo photo-owner">
-              {#if content.photoCaptions}
+            <div class="photo photo-owner" class:filled={!!photos.owner}>
+              {#if photos.owner}
+                <img src={photos.owner.src} alt={photos.owner.alt} loading="lazy" decoding="async" />
+              {:else if content.photoCaptions}
                 <span class="photo-caption">{content.photoCaptions.team}</span>
               {/if}
             </div>
@@ -2271,6 +2274,19 @@
     display: flex;
     align-items: flex-end;
     padding: 14px;
+  }
+
+  .photo.filled {
+    padding: 0;
+    overflow: hidden;
+    background: none;
+  }
+
+  .photo.filled img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .photo-caption {

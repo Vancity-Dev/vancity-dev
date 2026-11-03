@@ -14,11 +14,11 @@
 </svelte:head>
 
 {#if data.industry === 'plumbing'}
-  <PlumbingSite content={data.content} />
+  <PlumbingSite content={data.content} photos={data.photos} />
 {:else if data.industry === 'defense'}
   <DefenseSite content={data.content} />
 {:else if data.industry === 'electrical'}
-  <ElectricalSite content={data.content} />
+  <ElectricalSite content={data.content} photos={data.photos} />
 {:else if data.industry === 'accounting'}
-  <AccountingSite content={data.content} />
+  <AccountingSite content={data.content} photos={data.photos} />
 {/if}

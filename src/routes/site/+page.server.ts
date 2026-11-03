@@ -3,6 +3,7 @@ import type { PageServerLoad } from './$types';
 import { getProspectBySlug } from '$lib/prospects/db';
 import type { Prospect, ReadyProspect } from '$lib/prospects/types';
 import { industries } from '$lib/templates';
+import { loadSitePhotos } from '$lib/templates/photos-db';
 import { derivePlumbingContent, toTelHref } from '$lib/templates/plumbing/derive';
 import { deriveDefenseContent } from '$lib/templates/defense/derive';
 import { deriveElectricalContent } from '$lib/templates/electrical/derive';
@@ -34,14 +35,17 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
   // The column is free TEXT, so a row can name an industry this build has no template for.
   if (!Object.hasOwn(industries, prospect.industry)) error(500, 'Unsupported industry');
 
+  // Photos uploaded at /admin/images; empty when there are none or they cannot be read.
+  const photos = await loadSitePhotos(db, prospect.industry);
+
   if (prospect.industry === 'defense') {
-    return { industry: 'defense' as const, content: deriveDefenseContent(prospect) };
+    return { industry: 'defense' as const, content: deriveDefenseContent(prospect), photos };
   }
   if (prospect.industry === 'electrical') {
-    return { industry: 'electrical' as const, content: deriveElectricalContent(prospect) };
+    return { industry: 'electrical' as const, content: deriveElectricalContent(prospect), photos };
   }
   if (prospect.industry === 'accounting') {
-    return { industry: 'accounting' as const, content: deriveAccountingContent(prospect) };
+    return { industry: 'accounting' as const, content: deriveAccountingContent(prospect), photos };
   }
-  return { industry: 'plumbing' as const, content: derivePlumbingContent(prospect) };
+  return { industry: 'plumbing' as const, content: derivePlumbingContent(prospect), photos };
 };

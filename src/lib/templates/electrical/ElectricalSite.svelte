@@ -4,10 +4,11 @@
   // object in, no photos (slots stay empty unless photoCaptions is set).
 
   import { onMount } from 'svelte';
+  import type { SitePhotos } from '$lib/templates/photos';
   import type { ElectricalContent } from './types';
   import { wireRuns, type Rect } from './wire';
 
-  let { content }: { content: ElectricalContent } = $props();
+  let { content, photos = {} }: { content: ElectricalContent; photos?: SitePhotos } = $props();
 
   const icons = {
     bolt: 'M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z',
@@ -851,9 +852,9 @@
     <section class="section">
       <div class="container why-inner">
         <div class="why-media">
-          <div class="photo-slot why-photo" aria-hidden={content.photoCaptions ? undefined : 'true'}
-            class:bare={!content.photoCaptions}>
-            {#if content.photoCaptions}<span>{content.photoCaptions.team}</span>{/if}
+          <div class="photo-slot why-photo" aria-hidden={photos.team || content.photoCaptions ? undefined : 'true'}
+            class:bare={!content.photoCaptions && !photos.team} class:filled={!!photos.team}>
+            {#if photos.team}<img src={photos.team.src} alt={photos.team.alt} loading="lazy" decoding="async" />{:else if content.photoCaptions}<span>{content.photoCaptions.team}</span>{/if}
           </div>
           {#if content.socialProof}
             <div class="years-badge">
@@ -1018,9 +1019,9 @@
             Not sure if we cover you? <a href={content.phoneHref} class="text-link">Call {content.phoneDisplay}</a>
           </p>
         </div>
-        <div class="photo-slot map-photo" aria-hidden={content.photoCaptions ? undefined : 'true'}
-            class:bare={!content.photoCaptions}>
-          {#if content.photoCaptions}<span>{content.photoCaptions.map}</span>{/if}
+        <div class="photo-slot map-photo" aria-hidden={photos.map || content.photoCaptions ? undefined : 'true'}
+            class:bare={!content.photoCaptions && !photos.map} class:filled={!!photos.map}>
+          {#if photos.map}<img src={photos.map.src} alt={photos.map.alt} loading="lazy" decoding="async" />{:else if content.photoCaptions}<span>{content.photoCaptions.map}</span>{/if}
         </div>
       </div>
     </section>
@@ -1817,6 +1818,20 @@
   /* No caption: a plain tonal panel, so nothing reads as a placeholder. */
   .photo-slot.bare {
     border: 1px solid transparent;
+  }
+
+  /* An uploaded photo replaces the placeholder panel entirely. */
+  .photo-slot.filled {
+    display: block;
+    padding: 0;
+    border-color: transparent;
+  }
+
+  .photo-slot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .photo-slot span {
