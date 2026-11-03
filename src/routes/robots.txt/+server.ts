@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 
-const PERMISSIVE = `# allow crawling everything by default
+const PERMISSIVE = `# allow crawling everything by default, except the unlisted bathroom demo
 User-agent: *
-Disallow:
+Disallow: /demo/bathroom
 `;
 
 // Prospect sites are meant to read as the prospect's own finished site, so they must never
