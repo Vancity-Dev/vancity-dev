@@ -3,7 +3,9 @@
   // Palette: Graphite & Voltage. Same prospect-site shape as PlumbingSite: one page, content
   // object in, no photos (slots stay empty unless photoCaptions is set).
 
+  import { onMount } from 'svelte';
   import type { ElectricalContent } from './types';
+  import { wirePath } from './wire';
 
   let { content }: { content: ElectricalContent } = $props();
 
@@ -244,6 +246,19 @@
 
   type Errors = { name?: boolean; phone?: boolean; zip?: boolean; service?: boolean };
 
+  // A conduit run down the page gutter. It follows the page height, so it is rebuilt on resize.
+  let root: HTMLElement | undefined = $state();
+  let pageHeight = $state(0);
+  const wire = $derived(wirePath(pageHeight));
+  onMount(() => {
+    if (!root || typeof ResizeObserver === 'undefined') return;
+    const el = root;
+    const ro = new ResizeObserver(() => (pageHeight = el.offsetHeight));
+    ro.observe(el);
+    pageHeight = el.offsetHeight;
+    return () => ro.disconnect();
+  });
+
   let scrollY = $state(0);
   let menuOpen = $state(false);
   let form = $state({ ...emptyForm });
@@ -308,7 +323,19 @@
 
 <svelte:window bind:scrollY />
 
-<div class="el-root">
+<div class="el-root" bind:this={root}>
+  {#if wire}
+    <svg class="wire" aria-hidden="true" width="80" height={pageHeight} viewBox="0 0 80 {pageHeight}">
+      <path d={wire.d} class="wire-line" />
+      <path d={wire.d} class="wire-current" pathLength="1000" />
+      {#each wire.nodes as n (n.y)}
+        <g transform="translate({n.x - 11} {n.y - 11})">
+          <circle cx="11" cy="11" r="11" class="wire-node" />
+          <path d={icons.bolt} class="wire-bolt" transform="translate(4 4) scale(0.58)" />
+        </g>
+      {/each}
+    </svg>
+  {/if}
   <a href="#main" class="skip">Skip to content</a>
 
   <div class="utility">
@@ -1032,6 +1059,8 @@
     --el-gold: #f5a524;
     --el-danger: #b91c1c;
 
+    position: relative;
+    overflow-x: clip;
     cursor: auto;
     background: #fff;
     color: var(--el-ink);
@@ -2787,9 +2816,57 @@
     }
   }
 
+  /* Conduit run: a thin wire in the left gutter, a gold pulse travelling along it, and a bolt
+     junction at each jog. Decorative only; hidden where the gutter is too narrow to hold it. */
+  .wire {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .wire-line {
+    fill: none;
+    stroke: #8b9bb0;
+    stroke-opacity: 0.55;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .wire-current {
+    fill: none;
+    stroke: var(--el-gold);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 14 86;
+    animation: wire-flow 7s linear infinite;
+  }
+  .wire-node {
+    fill: #fff;
+    stroke: #8b9bb0;
+    stroke-width: 2;
+  }
+  .wire-bolt {
+    fill: var(--el-gold);
+    stroke: #8a5a00;
+    stroke-width: 1;
+  }
+  @keyframes wire-flow {
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
+  @media (max-width: 1239px) {
+    .wire {
+      display: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .el-root :global(*) {
       transition: none !important;
+    }
+    .wire-current {
+      animation: none;
     }
   }
 
