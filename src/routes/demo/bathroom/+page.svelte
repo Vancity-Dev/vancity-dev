@@ -2,6 +2,9 @@
   import { onMount } from 'svelte';
 
   const THREE_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  // Pinned to the cdnjs-published hash for this exact file
+  const THREE_SRI =
+    'sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==';
 
   let container: HTMLDivElement;
   let locked = $state(false);
@@ -13,6 +16,8 @@
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = THREE_SRC;
+      s.integrity = THREE_SRI;
+      s.crossOrigin = 'anonymous';
       s.onload = () => resolve(w.THREE);
       s.onerror = reject;
       document.head.appendChild(s);
