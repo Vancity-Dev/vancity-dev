@@ -5,7 +5,7 @@
 
   import { onMount } from 'svelte';
   import type { ElectricalContent } from './types';
-  import { wirePath } from './wire';
+  import { wireRuns, type Rect } from './wire';
 
   let { content }: { content: ElectricalContent } = $props();
 
@@ -375,20 +375,51 @@
     return 'No hold music.';
   });
 
-  // A conduit run down the page gutter. It follows the page height, so it is rebuilt on resize.
+  // A conduit run that swerves across the page. It is measured against the content blocks, so it
+  // ends in a tube wherever it would cross text and re-emerges in the gaps between sections.
   let root: HTMLElement | undefined = $state();
-  let pageHeight = $state(0);
-  const wire = $derived(wirePath(pageHeight));
+  let pageSize = $state({ w: 0, h: 0 });
+  let blocks = $state<Rect[]>([]);
+  const wire = $derived(wireRuns(pageSize.w, pageSize.h, blocks));
+
+  function measure() {
+    if (!root) return;
+    const base = root.getBoundingClientRect();
+    const rects: Rect[] = [];
+    const bands = root.querySelectorAll(':scope > main > section, :scope > main > div, :scope > footer');
+    for (const band of bands) {
+      for (const child of band.children) {
+        if (child instanceof SVGElement) continue;
+        // Containers are walked one level down, so each column or card list is its own block.
+        const parts = child.matches('.container, .container-narrow, .hero-inner')
+          ? [...child.children]
+          : [child];
+        for (const el of parts) {
+          if (el instanceof SVGElement) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          rects.push({
+            left: r.left - base.left,
+            top: r.top - base.top,
+            right: r.right - base.left,
+            bottom: r.bottom - base.top
+          });
+        }
+      }
+    }
+    blocks = rects;
+    pageSize = { w: root.offsetWidth, h: root.offsetHeight };
+  }
+
   onMount(() => {
     const tick = () => (now = new Date());
     tick();
     const timer = setInterval(tick, 30000);
     let ro: ResizeObserver | undefined;
     if (root && typeof ResizeObserver !== 'undefined') {
-      const el = root;
-      ro = new ResizeObserver(() => (pageHeight = el.offsetHeight));
-      ro.observe(el);
-      pageHeight = el.offsetHeight;
+      ro = new ResizeObserver(measure);
+      ro.observe(root);
+      measure();
     }
     return () => {
       clearInterval(timer);
@@ -483,13 +514,21 @@
 
 <div class="el-root" bind:this={root}>
   {#if wire}
-    <svg class="wire" aria-hidden="true" width="80" height={pageHeight} viewBox="0 0 80 {pageHeight}">
-      <path d={wire.d} class="wire-line" />
-      <path d={wire.d} class="wire-current" pathLength="1000" />
-      {#each wire.nodes as n (n.y)}
-        <g transform="translate({n.x - 11} {n.y - 11})">
-          <circle cx="11" cy="11" r="11" class="wire-node" />
-          <path d={icons.bolt} class="wire-bolt" transform="translate(4 4) scale(0.58)" />
+    <svg class="wire" aria-hidden="true" width={pageSize.w} height={pageSize.h} viewBox="0 0 {pageSize.w} {pageSize.h}">
+      {#each wire.runs as run, i (i)}
+        <path d={run.d} class="wire-line" />
+        <path d={run.d} class="wire-current" pathLength="1000" />
+        {#if run.node}
+          <g transform="translate({run.node.x - 11} {run.node.y - 11})">
+            <circle cx="11" cy="11" r="11" class="wire-node" />
+            <path d={icons.bolt} class="wire-bolt" transform="translate(4 4) scale(0.58)" />
+          </g>
+        {/if}
+      {/each}
+      {#each wire.caps as cap, i (i)}
+        <g transform="translate({cap.x} {cap.y}) rotate({cap.angle})">
+          <rect x="-26" y="-7" width="26" height="14" rx="4" class="wire-tube" />
+          <rect x="-5" y="-10" width="6" height="20" rx="2" class="wire-collar" />
         </g>
       {/each}
     </svg>
@@ -3244,14 +3283,13 @@
     }
   }
 
-  /* Conduit run: a thin wire in the left gutter, a gold pulse travelling along it, and a bolt
-     junction at each jog. Decorative only; hidden where the gutter is too narrow to hold it. */
-  /* Sits above section backgrounds (so it shows on dark and tinted bands) but below every piece
-     of content: direct children of each band are lifted above it, and it is faint enough that
-     text crossing it keeps its contrast. */
+  /* Conduit run: a thin wire that swerves across the page with a gold pulse travelling along it,
+     a bolt junction on long stretches, and a tube where it dives behind content. It sits above
+     section backgrounds but below content: direct children of each band are lifted above it, and
+     the script ends the wire before any block, so nothing crosses text. Decorative only. */
   .wire {
     position: absolute;
-    right: clamp(24px, 9vw, 150px);
+    left: 0;
     top: 0;
     z-index: 1;
     pointer-events: none;
@@ -3261,6 +3299,17 @@
     position: relative;
     z-index: 2;
   }
+
+  .wire-tube {
+    fill: #94a3b8;
+    fill-opacity: 0.7;
+  }
+
+  .wire-collar {
+    fill: #64748b;
+    fill-opacity: 0.8;
+  }
+
   .wire-line {
     fill: none;
     stroke: #8b9bb0;
