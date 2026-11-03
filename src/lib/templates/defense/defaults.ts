@@ -26,9 +26,9 @@ export const harbourDefaults: DefenseContent = {
   },
   proof: { years: '15', formerRole: 'Former prosecutor', rating: '4.9', reviewCount: '120' },
   results: [
-    { charge: 'Sample charge A', outcome: 'Dismissed', county: 'Sample County', summary: 'Sample summary. Replace with a verified, consented result.' },
-    { charge: 'Sample charge B', outcome: 'Reduced', county: 'Sample County', summary: 'Sample summary. Replace with a verified, consented result.' },
-    { charge: 'Sample charge C', outcome: 'Not guilty', county: 'Sample County', summary: 'Sample summary. Replace with a verified, consented result.' }
+    { type: 'DUI/DWI', charge: 'Sample charge A', outcome: 'Dismissed', county: 'Sample County', summary: 'Sample summary. Replace with a verified, consented result.' },
+    { type: 'Drug crimes', charge: 'Sample charge B', outcome: 'Reduced', county: 'Sample County', summary: 'Sample summary. Replace with a verified, consented result.' },
+    { type: 'DUI/DWI', charge: 'Sample charge C', outcome: 'Not guilty', county: 'Sample County', summary: 'Sample summary. Replace with a verified, consented result.' }
   ],
   reviews: [
     { quote: 'Sample review. Replace with a real, consented testimonial.', attribution: 'M., Sample charge' },

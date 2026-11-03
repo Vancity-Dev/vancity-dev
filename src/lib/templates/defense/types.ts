@@ -1,5 +1,6 @@
 export interface DefenseResult {
   charge: string;
+  type: string; // filter chip label, e.g. 'DUI/DWI'
   outcome: string;
   county: string;
   summary: string;

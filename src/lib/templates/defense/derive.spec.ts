@@ -53,4 +53,20 @@ describe('DefenseSite', () => {
     expect(body).toContain('id="results"');
     expect(body).toContain('Prior results do not guarantee a similar outcome');
   });
+
+  it('personalises the hero with the prospect city and offers every situation', () => {
+    const { body: raw } = render(DefenseSite, { props: { content: deriveDefenseContent(prospect) } });
+    const body = raw.replace(/\s+/g, ' ');
+    expect(body).toContain('Arrested in Austin? Talk to a defense lawyer');
+    for (const label of ['Just arrested', 'A loved one was arrested', 'I have a court date', 'Police want to talk', 'Clear my record']) {
+      expect(body).toContain(label);
+    }
+  });
+
+  it('only offers result filters when results span more than one charge type', () => {
+    const { body } = render(DefenseSite, { props: { content: harbourDefaults } });
+    expect(body).toContain('Filter results by charge type');
+    const single = { ...harbourDefaults, results: harbourDefaults.results.slice(0, 1) };
+    expect(render(DefenseSite, { props: { content: single } }).body).not.toContain('Filter results by charge type');
+  });
 });
