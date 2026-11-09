@@ -55,7 +55,7 @@ export function contrastSweep(): ContrastFailure[] {
   };
 
   // One selector per template root. Add the new one when a template is added.
-  const ROOTS = '.op-root, .df-root, .el-root, .cpa-root';
+  const ROOTS = '.op-root, .df-root, .el-root, .cpa-root, .gc-root';
   const root = document.querySelector(ROOTS);
   if (!root)
     return [{ tag: 'root', text: `${ROOTS} not found`, color: '', background: '', ratio: 0 }];

@@ -7,6 +7,7 @@ import { derivePlumbingContent, toTelHref } from '$lib/templates/plumbing/derive
 import { deriveDefenseContent } from '$lib/templates/defense/derive';
 import { deriveElectricalContent } from '$lib/templates/electrical/derive';
 import { deriveAccountingContent } from '$lib/templates/accounting/derive';
+import { deriveContractorContent } from '$lib/templates/contractor/derive';
 
 // ReadyProspect only promises a string at the type level. '', 'call us' and an extension-only
 // 'x 123' satisfy it and would render "Call ..." in six places with a dead link. The gate asks
@@ -42,6 +43,9 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
   }
   if (prospect.industry === 'accounting') {
     return { industry: 'accounting' as const, content: deriveAccountingContent(prospect) };
+  }
+  if (prospect.industry === 'contractor') {
+    return { industry: 'contractor' as const, content: deriveContractorContent(prospect) };
   }
   return { industry: 'plumbing' as const, content: derivePlumbingContent(prospect) };
 };
