@@ -39,6 +39,7 @@ test.beforeAll(async ({}, testInfo) => {
     [
       row('turk-plumbing', 'Turk Plumbing', 'plumbing', '512-555-0142', 'Round Rock,Cedar Park,Pflugerville'),
       row('turk-accounting', 'Turk Accounting', 'accounting', '512-555-0143', 'Round Rock,Cedar Park'),
+      row('turk-builders', 'Turk Custom Builders', 'contractor', '512-555-0144', 'Round Rock,Cedar Park'),
       row('archived-co', 'Archived Plumbing', 'plumbing', '512-555-0100', null, 1),
       row('no-phone', 'No Phone Plumbing', 'plumbing', null, null),
       row('bad-phone', 'Bad Phone Plumbing', 'plumbing', 'call us', null),
@@ -90,6 +91,32 @@ test('accounting prospect page invents no credentials or proof', async ({ page }
   expect(body).not.toContain('Meet the team');
   // The sample markers are text-transform: uppercase, which innerText reflects.
   expect(body.toLowerCase()).toContain('sample review');
+});
+
+test('a contractor prospect renders the contractor template', async ({ page }) => {
+  await page.goto('http://turk-builders.localhost:4173/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'Custom Homes & Renovations in Austin, TX'
+  );
+  await expect(page.locator('.brand-name').first()).toContainText('Turk Custom');
+  await expect(page.locator('.towns li')).toHaveCount(2);
+  await expect(page.getByText('Serving Austin, Round Rock & Cedar Park').first()).toBeVisible();
+  // The portal boards are there, and they say they are samples.
+  await expect(page.locator('#schedule .tag')).toContainText('Sample project');
+  await expect(page.locator('#budget .tag')).toContainText('Sample project');
+});
+
+// A prospect row carries no licence, rating, named people, projects or reviews, so the page
+// must claim none.
+test('contractor prospect page invents no credentials, projects or reviews', async ({ page }) => {
+  await page.goto('http://turk-builders.localhost:4173/');
+  const body = await page.locator('body').innerText();
+  for (const s of ['Halden', 'North Vancouver', 'Elena', 'Cove Road', 'Vancity', 'Lic. #'])
+    expect(body).not.toContain(s);
+  await expect(page.locator('#work')).toHaveCount(0);
+  await expect(page.locator('#reviews')).toHaveCount(0);
+  await expect(page.locator('#team')).toHaveCount(0);
+  await expect(page.locator('.rating')).toHaveCount(0);
 });
 
 test('any path on a prospect subdomain renders the same site', async ({ page }) => {

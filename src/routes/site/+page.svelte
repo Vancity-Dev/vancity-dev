@@ -3,6 +3,7 @@
   import DefenseSite from '$lib/templates/defense/DefenseSite.svelte';
   import ElectricalSite from '$lib/templates/electrical/ElectricalSite.svelte';
   import AccountingSite from '$lib/templates/accounting/AccountingSite.svelte';
+  import ContractorSite from '$lib/templates/contractor/ContractorSite.svelte';
 
   let { data } = $props();
 </script>
@@ -21,4 +22,6 @@
   <ElectricalSite content={data.content} />
 {:else if data.industry === 'accounting'}
   <AccountingSite content={data.content} />
+{:else if data.industry === 'contractor'}
+  <ContractorSite content={data.content} />
 {/if}

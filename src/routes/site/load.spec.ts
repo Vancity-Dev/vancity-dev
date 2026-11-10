@@ -63,6 +63,15 @@ describe('/site load', () => {
     );
   });
 
+  it('renders the contractor template for a contractor row', async () => {
+    const data = await run(
+      'turk-builders',
+      platformWith(async () => ({ ...row, industry: 'contractor', company_name: 'Turk Custom Builders' }))
+    );
+    expect(data.industry).toBe('contractor');
+    expect(data.content.heroHeadline).toBe('Custom Homes & Renovations in Austin, TX');
+  });
+
   it('is a 503, not a rendered page, when the D1 call throws', async () => {
     const platform = {
       env: {
