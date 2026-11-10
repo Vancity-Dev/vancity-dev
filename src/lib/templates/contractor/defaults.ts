@@ -2,7 +2,8 @@ import type { ContractorContent } from './types';
 
 // Showcase content for /p/contractor. A fictional firm with every optional block filled, so the
 // whole template renders. Sample business, sample numbers: nothing here is a real licence, a
-// real review count or a real project.
+// real review count or a real project. The photographs are stock images (see
+// static/builder/SOURCES.md) standing in for a client's own project photography.
 export const haldenMossDefaults: ContractorContent = {
   title: 'Custom Home Builder & Renovations in North Vancouver, BC | Halden & Moss Builders',
   metaDescription:
@@ -10,13 +11,60 @@ export const haldenMossDefaults: ContractorContent = {
   companyName: 'Halden & Moss Builders',
   brandLead: 'Halden & Moss',
   brandTail: 'Builders',
-  brandSub: 'Custom Homes & Renovations',
+  brandSub: 'Custom Homes & Restorations',
   city: 'North Vancouver',
   location: 'North Vancouver, BC',
-  eyebrow: 'Custom homes & renovations · North Shore',
-  heroHeadline: 'Custom homes you can watch come together, week by week and dollar by dollar.',
+  eyebrow: 'Custom homes & restorations · North Shore',
+  heroHeadline: 'Custom homes, built in plain sight.',
+  heroAccent: 'plain sight',
   heroLead:
-    'Halden & Moss builds and renovates single-family homes on the North Shore. Every client gets a private portal with a live schedule and a line-by-line budget, so you never have to ask where things stand.',
+    'Halden & Moss builds and restores single-family homes on the North Shore. From the day you sign, a private portal shows you the live schedule and a line-by-line budget.',
+  photography: {
+    hero: {
+      src: '/builder/cove-road.jpg',
+      alt: 'A modern two-storey house with floor-to-ceiling glazing, lit from within at dusk',
+      caption: 'Cove Road Residence · Deep Cove',
+      focus: '50% 62%'
+    },
+    craft: [
+      {
+        label: 'Timber',
+        note: 'Heavy timber and glulam, cut and fitted to a tolerance you can see.',
+        photo: {
+          src: '/builder/craft-timber.jpg',
+          alt: 'Exposed timber beams crossing a blue sky'
+        }
+      },
+      {
+        label: 'Stair',
+        note: 'Steel and oak, made in one shop and set in one day.',
+        photo: {
+          src: '/builder/craft-stair.jpg',
+          alt: 'A staircase with a slim steel balustrade and warm wooden treads'
+        }
+      },
+      {
+        label: 'Stone',
+        note: 'Slabs book-matched on site before a single cut is made.',
+        photo: {
+          src: '/builder/craft-stone.jpg',
+          alt: 'A bathroom finished in pale stone with a freestanding tub'
+        }
+      },
+      {
+        label: 'Light',
+        note: 'Rooflines drawn so daylight reaches the middle of the house.',
+        photo: {
+          src: '/builder/craft-light.jpg',
+          alt: 'A timber-lined ceiling with a skylight washing a beam in daylight'
+        }
+      }
+    ],
+    build: {
+      src: '/builder/build-frame.jpg',
+      alt: 'The timber frame of a house under construction, seen down a corridor of studs'
+    }
+  },
   phoneDisplay: '(604) 555-0188',
   phoneHref: 'tel:+16045550188',
   email: 'build@haldenmoss.example',
@@ -36,37 +84,105 @@ export const haldenMossDefaults: ContractorContent = {
       name: 'Cove Road Residence',
       kind: 'New build',
       place: 'Deep Cove',
+      year: '2025',
       size: '3,600 sq ft',
       duration: '16 months',
-      blurb: 'A cedar-and-glass family home stepping down a sloped lot, with a green roof over the garage.',
-      caption: '[ photo · 3:2 · Cove Road Residence, street elevation ]'
+      blurb:
+        'A cedar-and-glass family home stepping down a sloped lot, with a cantilevered upper floor and a green roof over the garage.',
+      photos: [
+        {
+          src: '/builder/cove-road.jpg',
+          alt: 'A modern two-storey house with floor-to-ceiling glazing, lit from within at dusk',
+          focus: '50% 60%'
+        },
+        {
+          src: '/builder/cove-road-living.jpg',
+          alt: 'A double-height living room with a fireplace wall and a view through tall windows'
+        }
+      ]
     },
     {
       name: 'Lonsdale Heritage Restoration',
       kind: 'Heritage',
       place: 'Lower Lonsdale',
+      year: '2024',
       size: '2,400 sq ft',
       duration: '11 months',
-      blurb: 'A 1930s craftsman restored to its original trim, with a new structure, systems and kitchen behind it.',
-      caption: '[ photo · 3:2 · Lonsdale craftsman, restored front porch ]'
+      blurb:
+        'A 1930s craftsman restored to its original trim, with new structure, systems and kitchen behind it.',
+      photos: [
+        {
+          src: '/builder/lonsdale.jpg',
+          alt: 'A cream craftsman house with a deep columned porch and flower baskets'
+        },
+        {
+          src: '/builder/lonsdale-living.jpg',
+          alt: 'A living room with a stone fireplace flanked by dark built-in shelving'
+        }
+      ]
     },
     {
       name: 'Ridgeview Second Storey',
       kind: 'Addition',
       place: 'Edgemont',
+      year: '2024',
       size: '1,100 sq ft added',
       duration: '8 months',
-      blurb: 'A full second storey added to a 1970s bungalow while the family lived next door.',
-      caption: '[ photo · 3:2 · Ridgeview, new second storey at dusk ]'
+      blurb:
+        'A full second storey added to a 1970s bungalow, clad in vertical cedar, while the family lived next door.',
+      photos: [
+        {
+          src: '/builder/ridgeview.jpg',
+          alt: 'A timber-clad house with wraparound balconies rising out of dense planting',
+          focus: '50% 40%'
+        },
+        {
+          src: '/builder/ridgeview-living.jpg',
+          alt: 'A quiet, light-filled living room with a low sofa and floor-to-ceiling windows',
+          focus: '50% 55%'
+        }
+      ]
     },
     {
       name: 'Capilano Whole-Home Renovation',
       kind: 'Renovation',
       place: 'Capilano',
+      year: '2023',
       size: '3,100 sq ft',
       duration: '12 months',
-      blurb: 'Stripped to the studs and rebuilt around a new open plan, with a north-facing kitchen and a wine cellar.',
-      caption: '[ photo · 3:2 · Capilano kitchen, island and pantry ]'
+      blurb:
+        'Stripped to the studs and rebuilt around a new open plan, with a stone-clad kitchen island and black steel windows.',
+      photos: [
+        {
+          src: '/builder/capilano-kitchen.jpg',
+          alt: 'A kitchen with a waterfall marble island and a wall of book-matched stone'
+        },
+        {
+          src: '/builder/capilano-living.jpg',
+          alt: 'A bright living room with black steel windows and a curved sofa'
+        }
+      ]
+    },
+    {
+      name: 'Kerr Street Infill',
+      kind: 'New build',
+      place: 'East Vancouver',
+      year: '2023',
+      size: '2,800 sq ft',
+      duration: '14 months',
+      blurb:
+        'A narrow-lot home in dark steel and cedar that sits quietly beside its heritage neighbour.',
+      photos: [
+        {
+          src: '/builder/kerr-street.jpg',
+          alt: 'A modern black-clad house with a cantilevered white frame beside a traditional home',
+          focus: '40% 50%'
+        },
+        {
+          src: '/builder/kerr-street-bath.jpg',
+          alt: 'A dark marble bathroom with a timber-panelled niche and a recessed tub'
+        }
+      ]
     }
   ],
   testimonials: [

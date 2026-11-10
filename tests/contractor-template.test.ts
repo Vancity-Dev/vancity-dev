@@ -7,26 +7,64 @@ test('/p/contractor renders the Halden & Moss showcase', async ({ page }) => {
     'Custom Home Builder & Renovations in North Vancouver, BC | Halden & Moss Builders'
   );
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Custom homes you can watch come together, week by week and dollar by dollar.'
+    'Custom homes, built in plain sight.'
   );
-  await expect(page.locator('.brand-name').first()).toContainText('Halden & Moss Builders');
-  await expect(page.locator('.service-card')).toHaveCount(6);
+  await expect(page.locator('.wm').first()).toContainText('Halden & Moss Builders');
+  await expect(page.locator('.svc')).toHaveCount(6);
   await expect(page.locator('.steps li')).toHaveCount(6);
-  await expect(page.locator('.work')).toHaveCount(4);
+  await expect(page.locator('.proj')).toHaveCount(5);
+  await expect(page.locator('.craft-grid li')).toHaveCount(4);
   await expect(page.locator('.quote')).toHaveCount(3);
   await expect(page.locator('.faqs details')).toHaveCount(8);
   await expect(page.locator('.towns li')).toHaveCount(6);
 });
 
-test('the hero picker retitles the page and pre-fills the form', async ({ page }) => {
+test('every showcase photograph loads, and the hero is the first thing on screen', async ({
+  page
+}) => {
   await page.goto('/p/contractor');
-  await page.getByRole('button', { name: 'Whole-home renovation' }).first().click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Renovating your North Vancouver home? Stay in control of time and cost.'
-  );
-  await expect(page.getByRole('combobox', { name: 'What are you planning?' })).toHaveValue(
-    'Whole-home renovation'
-  );
+  const hero = page.locator('.hero-img img');
+  await expect(hero).toBeVisible();
+  await expect
+    .poll(() => hero.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
+    .toBe(true);
+
+  // Lazy images only load near the viewport, so walk the page before checking them all.
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  for (let y = 0; y < height; y += 600) {
+    await page.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page.waitForTimeout(60);
+  }
+  // Images fetched on scroll arrive a moment later, so poll until the last one settles.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll<HTMLImageElement>('.gc-root img')]
+            .filter((i) => !(i.complete && i.naturalWidth > 0))
+            .map((i) => i.getAttribute('src'))
+        ),
+      { timeout: 15_000 }
+    )
+    .toEqual([]);
+});
+
+test('the header is smoked glass over the hero and paper once you scroll past it', async ({
+  page
+}) => {
+  await page.goto('/p/contractor');
+  const header = page.locator('.header');
+  await expect(header).toHaveClass(/over/);
+  await page.evaluate(() => window.scrollTo(0, window.innerHeight * 1.5));
+  await expect(header).not.toHaveClass(/over/);
+});
+
+test('the enquiry form offers each project type as a radio chip', async ({ page }) => {
+  await page.goto('/p/contractor');
+  await expect(page.getByRole('radio')).toHaveCount(5);
+  await page.locator('.chip-opt', { hasText: 'Whole-home renovation' }).click();
+  await expect(page.getByRole('radio', { name: 'Whole-home renovation' })).toBeChecked();
+  await expect(page.getByRole('radio', { name: 'New custom home' })).not.toBeChecked();
 });
 
 test('the schedule shows the baseline against the forecast and explains each phase', async ({
@@ -107,11 +145,12 @@ test('the consultation form validates before it thanks you', async ({ page }) =>
   await page.goto('/p/contractor');
   await page.getByRole('button', { name: 'Request a consultation' }).click();
   await expect(page.locator('.field-err').first()).toBeVisible();
+  await expect(page.locator('#gc-type-err')).toBeVisible();
   await expect(page.locator('.form-status.is-error')).toBeVisible();
 
   await page.getByRole('textbox', { name: 'Your name' }).fill('Dana Reyes');
   await page.getByRole('textbox', { name: 'Email' }).fill('dana@example');
-  await page.getByRole('combobox', { name: 'What are you planning?' }).selectOption('New custom home');
+  await page.locator('.chip-opt', { hasText: 'New custom home' }).click();
   await page.getByRole('button', { name: 'Request a consultation' }).click();
   await expect(page.locator('#gc-email-err')).toBeVisible();
 
@@ -126,7 +165,7 @@ test('a typed phone number still has to be dialable, but a blank one is fine', a
   await page.goto('/p/contractor');
   await page.getByRole('textbox', { name: 'Your name' }).fill('Dana Reyes');
   await page.getByRole('textbox', { name: 'Email' }).fill('dana@example.com');
-  await page.getByRole('combobox', { name: 'What are you planning?' }).selectOption('New custom home');
+  await page.locator('.chip-opt', { hasText: 'New custom home' }).click();
   await page.getByRole('textbox', { name: /^Phone/ }).fill('555');
   await page.getByRole('button', { name: 'Request a consultation' }).click();
   await expect(page.locator('#gc-phone-err')).toBeVisible();
@@ -152,7 +191,7 @@ test('/p/contractor works and passes contrast at mobile width', async ({ page })
     'aria-expanded',
     'true'
   );
-  await expect(page.getByLabel('Main').getByRole('link', { name: 'Your budget' })).toBeVisible();
+  await expect(page.getByLabel('Main').getByRole('link', { name: 'Client portal' })).toBeVisible();
   expect(await page.evaluate(contrastSweep)).toEqual([]);
 });
 

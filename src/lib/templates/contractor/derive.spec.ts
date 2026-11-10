@@ -37,6 +37,9 @@ describe('deriveContractorContent', () => {
     expect(c.investment).toBeNull();
     expect(c.projects).toEqual([]);
     expect(c.testimonials).toEqual([]);
+    // Photographs are a firm's own or nothing: a derived page has none to show.
+    expect(c.photography).toBeNull();
+    expect(c.heroAccent).toBeNull();
   });
 
   it('points the call button at the form when the phone has no digits', () => {

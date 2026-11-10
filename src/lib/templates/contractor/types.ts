@@ -1,18 +1,34 @@
 export type ProjectKind = 'New build' | 'Renovation' | 'Addition' | 'Heritage';
 
+export interface Photo {
+  src: string; // a path under /static, e.g. "/builder/cove-road.jpg"
+  alt: string; // describes the picture for a screen reader; never empty
+  focus?: string; // CSS object-position, for a portrait frame cropped to landscape
+}
+
 export interface ContractorProject {
   name: string;
   kind: ProjectKind;
   place: string;
+  year: string; // "2025"
   size: string; // "3,400 sq ft"
   duration: string; // "14 months"
   blurb: string;
-  caption: string; // placeholder text inside the photo slot
+  // The first photo leads; a second, if given, sits offset beside the write-up.
+  photos: [Photo] | [Photo, Photo];
 }
 
 export interface ContractorTestimonial {
   quote: string;
   attribution: string; // first name + initial and the kind of project, never a full name
+}
+
+// Photography for the editorial blocks. Only a firm's own, consented photographs belong here, so a
+// derived prospect gets null and the page falls back to a typographic hero and no image blocks.
+export interface ContractorPhotography {
+  hero: Photo & { caption: string }; // full-bleed; the caption names the project in frame
+  craft: { label: string; note: string; photo: Photo }[]; // the details strip
+  build: Photo; // quiet backdrop to the "building in plain sight" band
 }
 
 export interface ContractorContent {
@@ -26,7 +42,9 @@ export interface ContractorContent {
   location: string; // "Vancouver, BC", or just the city when no region was given
   eyebrow: string;
   heroHeadline: string;
+  heroAccent: string | null; // a phrase inside heroHeadline set in italics; null => no accent
   heroLead: string;
+  photography: ContractorPhotography | null;
   phoneDisplay: string;
   phoneHref: string; // tel: link, or '#consult' when the number is not dialable
   email: string | null; // null => mailto links hidden

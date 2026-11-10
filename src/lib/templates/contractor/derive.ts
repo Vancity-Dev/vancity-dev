@@ -31,6 +31,8 @@ export function deriveContractorContent(prospect: ReadyProspect): ContractorCont
     location,
     eyebrow: `Custom homes & renovations · ${city}`,
     heroHeadline: `Custom Homes & Renovations in ${location}`,
+    heroAccent: null,
+    photography: null,
     heroLead:
       'Every project comes with a private client portal: a live schedule and a line-by-line budget, so you always know where your build stands.',
     phoneDisplay: clean(prospect.phone),
