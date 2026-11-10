@@ -367,7 +367,7 @@
   .v-head {
     font-family: var(--gc-display);
     font-size: clamp(2.4rem, 5vw, 3.3rem);
-    font-weight: 600;
+    font-weight: 400;
     line-height: 1;
   }
 
@@ -461,7 +461,7 @@
   .t-value {
     font-family: var(--gc-display);
     font-size: 1.85rem;
-    font-weight: 600;
+    font-weight: 400;
     line-height: 1.1;
   }
 
@@ -502,7 +502,7 @@
     margin: 0;
     font-family: var(--gc-display);
     font-size: 1.5rem;
-    font-weight: 600;
+    font-weight: 400;
   }
 
   .legend {
@@ -693,7 +693,7 @@
     margin: 0.4rem 0 0.7rem;
     font-family: var(--gc-display);
     font-size: 3rem;
-    font-weight: 600;
+    font-weight: 400;
     line-height: 1;
   }
 

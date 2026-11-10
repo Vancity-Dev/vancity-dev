@@ -98,7 +98,7 @@ test('a contractor prospect renders the contractor template', async ({ page }) =
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     'Custom Homes & Renovations in Austin, TX'
   );
-  await expect(page.locator('.brand-name').first()).toContainText('Turk Custom');
+  await expect(page.locator('.wm').first()).toContainText('Turk Custom');
   await expect(page.locator('.towns li')).toHaveCount(2);
   await expect(page.getByText('Serving Austin, Round Rock & Cedar Park').first()).toBeVisible();
   // The portal boards are there, and they say they are samples.
@@ -117,6 +117,9 @@ test('contractor prospect page invents no credentials, projects or reviews', asy
   await expect(page.locator('#reviews')).toHaveCount(0);
   await expect(page.locator('#team')).toHaveCount(0);
   await expect(page.locator('.rating')).toHaveCount(0);
+  // No photograph on a prospect: the stock showcase imagery is never someone else's work.
+  await expect(page.locator('img')).toHaveCount(0);
+  await expect(page.locator('.hero-img')).toHaveCount(0);
 });
 
 test('any path on a prospect subdomain renders the same site', async ({ page }) => {

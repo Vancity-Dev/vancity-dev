@@ -265,7 +265,7 @@
   .k-value {
     font-family: var(--gc-display);
     font-size: 2.4rem;
-    font-weight: 600;
+    font-weight: 400;
     line-height: 1;
   }
 
@@ -340,7 +340,7 @@
     margin: 0;
     font-family: var(--gc-display);
     font-size: 1.5rem;
-    font-weight: 600;
+    font-weight: 400;
   }
 
   .toggle {
@@ -651,7 +651,7 @@
     margin: 0;
     font-family: var(--gc-display);
     font-size: 1.35rem;
-    font-weight: 600;
+    font-weight: 400;
   }
 
   .d-note {
